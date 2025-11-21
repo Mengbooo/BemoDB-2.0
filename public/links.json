@@ -1,27 +1,94 @@
 {
   "friends": [
     {
-      "id_name": "cf-links",
-      "desc": "Common links included in circle friends",
+      "id_name": "blog-friends",
+      "desc": "Blog friends links",
       "link_list": [
         {
-          "name": "Arthals' ink",
-          "intro": "所见高山远木，阔云流风；所幸岁月盈余，了无拘束",
-          "link": "https://arthals.ink/",
-          "avatar": "https://cdn.arthals.ink/Arthals.png"
+          "name": "dekrt",
+          "intro": "",
+          "link": "https://dekrt.cn",
+          "avatar": "https://avatars.githubusercontent.com/u/96043667?v=4"
         },
         {
-          "name": "CWorld Site",
-          "intro": "求知若愚，虚怀若谷",
-          "link": "https://cworld0.com/",
-          "avatar": "https://cravatar.cn/avatar/1ffe42aa45a6b1444a786b1f32dfa8aa?s=200"
+          "name": "HomeArchbishop",
+          "intro": "",
+          "link": "https://buuug.top/",
+          "avatar": "https://avatars.githubusercontent.com/u/64010148?v=4"
+        },
+        {
+          "name": "capybara",
+          "intro": "",
+          "link": "https://github.com/wangyinyuan",
+          "avatar": "https://avatars.githubusercontent.com/u/110143758?v=4"
+        },
+        {
+          "name": "GoForceX",
+          "intro": "",
+          "link": "https://goforcex.top/",
+          "avatar": "https://avatars.githubusercontent.com/u/67143590?v=4"
+        },
+        {
+          "name": "MCjiaozi",
+          "intro": "",
+          "link": "https://www.mcjiaozi.com/",
+          "avatar": "https://avatars.githubusercontent.com/u/64739528?v=4"
+        },
+        {
+          "name": "Hamster",
+          "intro": "",
+          "link": "https://hamster5295.github.io/",
+          "avatar": "https://avatars.githubusercontent.com/u/37259613?v=4"
+        },
+        {
+          "name": "BOWL",
+          "intro": "",
+          "link": "https://github.com/bowl23",
+          "avatar": "https://avatars.githubusercontent.com/u/137598038?v=4"
+        },
+        {
+          "name": "realRayyy",
+          "intro": "",
+          "link": "https://github.com/realRayyy",
+          "avatar": "https://avatars.githubusercontent.com/u/91679915?v=4"
+        },
+        {
+          "name": "Raxskle",
+          "intro": "",
+          "link": "https://blog.raxskle.fun/",
+          "avatar": "https://avatars.githubusercontent.com/u/101055657?v=4"
+        },
+        {
+          "name": "yqcjq",
+          "intro": "",
+          "link": "https://github.com/yqcjq",
+          "avatar": "https://avatars.githubusercontent.com/u/140601241?v=4"
+        },
+        {
+          "name": "jingyuhhh",
+          "intro": "",
+          "link": "https://github.com/jingyuhhh",
+          "avatar": "https://avatars.githubusercontent.com/u/113242468?v=4"
+        },
+        {
+          "name": "Magren",
+          "intro": "",
+          "link": "https://magren.cc/",
+          "avatar": "https://avatars.githubusercontent.com/u/44224328?v=4"
+        },
+        {
+          "name": "Rekord's Blog",
+          "intro": "",
+          "link": "https://sxrekord.com/",
+          "avatar": "https://avatars.githubusercontent.com/u/74645100?v=4"
+        },
+        {
+          "name": "Nihiler",
+          "intro": "",
+          "link": "https://nihiler.cn/",
+          "avatar": "https://avatars.githubusercontent.com/u/87848488?v=4"
         }
       ]
-    },
-    {
-      "id_name": "inactive-links",
-      "desc": "Inactive or rule-breaking friends",
-      "link_list": []
     },
     {
       "id_name": "special-links",
