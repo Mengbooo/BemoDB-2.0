@@ -41,7 +41,8 @@ const socialImage = heroImage
     : heroImage.src.src
   : '/images/social-card.png'
 const articleDate = updatedDate?.toISOString() ?? publishDate.toISOString()
-const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--un-text-opacity))'
+// 自定义文章页面高亮颜色
+const primaryColor = data.heroImage?.color ?? '#01c193' // 可以修改这里的默认颜色
 ---
 
 <PageLayout
