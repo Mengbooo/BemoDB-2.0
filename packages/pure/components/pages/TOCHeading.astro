@@ -20,9 +20,14 @@ const text = rawText.endsWith('#') ? rawText.slice(0, -1) : rawText
     ></span>
     <a
       aria-label={`Scroll to section: ${text}`}
-      class={cn(
+        class={cn(
         'toc-item line-clamp-2 px-3 py-1 ms-2 text-foreground/75 transition-all hover:text-foreground [&.highlight]:font-medium [&.highlight]:text-primary [&.is-read]:text-input [&.highlight-bg-translucent]:bg-muted',
-        depth > 2 && 'ps-7'
+        // --- 修改这里的逻辑 ---
+        depth === 3 && 'ps-7',         // H3 缩进
+        depth === 4 && 'ps-11',        // H4 缩进更多 (ps-7 + 4)
+        depth === 5 && 'ps-15',        // H5 缩进更多 (ps-11 + 4)
+        depth >= 6 && 'ps-19'          // H6 及以后
+        // ---------------------
       )}
       href={`#${slug}`}>{text}</a
     >
