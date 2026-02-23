@@ -1,7 +1,27 @@
 ---
-import { getBlogCollection, groupCollectionsByCategory, sortMDByDate } from 'astro-pure/server'
+import { getBlogCollection, sortMDByDate } from 'astro-pure/server'
 import { Button, FormattedDate } from 'astro-pure/user'
 import PageLayout from '@/layouts/BaseLayout.astro'
+
+function groupCollectionsByCategory<T extends CollectionKey>(
+  collections: Collections
+): [string, CollectionEntry<T>[]][] {
+  const collectionsByCategory = collections.reduce((acc, collection) => {
+    // Extract category from id (e.g., "Network/001" -> "Network")
+    const idParts = collection.id.split('/')
+    const category = idParts.length > 1 ? idParts[0] : 'Uncategorized'
+
+    if (!acc.has(category)) {
+      acc.set(category, [])
+    }
+    acc.get(category)!.push(collection)
+    return acc
+  }, new Map<string, Collections>())
+
+  return Array.from(
+    collectionsByCategory.entries() as IterableIterator<[string, CollectionEntry<T>[]]>
+  ).sort((a, b) => a[0].localeCompare(b[0]))
+}
 
 export const prerender = true
 
