@@ -1,0 +1,101 @@
+---
+import type { GetStaticPaths, Page } from 'astro'
+import type { CollectionEntry } from 'astro:content'
+
+import { Paginator, WeeklyPostPreview } from 'astro-pure/components/pages'
+import { getBlogCollection, getUniqueTags, sortMDByDate } from 'astro-pure/server'
+import { Button, Icon } from 'astro-pure/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+import config from '@/site-config'
+
+export const prerender = true
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const collections = sortMDByDate(await getBlogCollection('weekly'))
+  const uniqueTags = getUniqueTags(collections)
+  const collectionsCount = collections.length
+  return paginate(collections, {
+    pageSize: config.content.blogPageSize,
+    props: { uniqueTags, collectionsCount }
+  })
+}) satisfies GetStaticPaths
+
+interface Props {
+  page: Page<CollectionEntry<'weekly'>>
+  uniqueTags: string[]
+  collectionsCount: number
+}
+
+const { page, uniqueTags, collectionsCount } = Astro.props
+
+const meta = {
+  description: 'Weekly学习记录和思考总结',
+  title: 'Weekly'
+}
+
+const paginationProps = {
+  ...(page.url.prev && {
+    prevUrl: {
+      text: `← 上一页`,
+      url: page.url.prev
+    }
+  }),
+  ...(page.url.next && {
+    nextUrl: {
+      text: `下一页 →`,
+      url: page.url.next
+    }
+  })
+}
+---
+
+<PageLayout {meta}>
+  <Button title='返回首页' href='/' variant='back' />
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-6 mt-6 text-3xl font-medium sm:mt-10'>Weekly</h1>
+    </div>
+    {
+      page.data.length === 0 ? (
+        <p>暂无Weekly记录。</p>
+      ) : (
+        <div class='grid gap-y-16 sm:grid-cols-[3fr_1fr] sm:gap-x-8'>
+          <section aria-label='Weekly posts list' class='animate' id='content'>
+            {/* header */}
+            <div class='mb-3 flex flex-col justify-between text-sm sm:mb-5 sm:flex-row'>
+              <span class='text-muted-foreground'>
+                第 {page.currentPage} 页 - 共 {page.data.length} 篇Weekly，总计 {collectionsCount} 篇
+              </span>
+            </div>
+            {/* posts */}
+            <ul class='flex flex-col gap-y-4 text-start'>
+              {page.data.map((post) => (
+                <WeeklyPostPreview post={post} detailed />
+              ))}
+            </ul>
+            <Paginator {...paginationProps} />
+          </section>
+
+          {/* sidebar */}
+          {!!uniqueTags.length && (
+            <aside
+              aria-label='Filter by tags'
+              class='animate top-20 sticky max-h-[calc(100vh-6rem)] overflow-y-auto py-2 text-sm max-md:hidden'
+            >
+              <h2 class='mb-2 font-medium'>标签</h2>
+              <ul class='flex flex-wrap gap-2'>
+                {uniqueTags.map((tag) => (
+                  <li>
+                    <Button href={`/tags/${tag}`} variant='pill'>
+                      {tag}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
+        </div>
+      )
+    }
+  </main>
+</PageLayout>

@@ -48,8 +48,9 @@ export const theme: ThemeUserConfig = {
   header: {
     menu: [
       { title: 'Blog', link: '/blog' },
+      { title: 'Weekly', link: '/weekly' },
+      { title: 'Handbook', link: '/handbook' },
       { title: 'Archives', link: '/archives' },
-      { title: 'Projects', link: '/projects' },
       { title: 'Links', link: '/links' },
       { title: 'About', link: '/about' }
     ]
@@ -117,8 +118,8 @@ export const integ: IntegrationUserConfig = {
     applyTip: [
       { name: 'Name', val: theme.title },
       { name: 'Desc', val: theme.description || 'Null' },
-      { name: 'Link', val: 'https://astro-pure.js.org/' },
-      { name: 'Avatar', val: 'https://astro-pure.js.org/favicon/favicon.ico' }
+      { name: 'Link', val: 'https://bolaxious.cn' },
+      { name: 'Avatar', val: 'https://bolaxious.cn/favicon/favicon.ico' }
     ]
   },
   // Enable page search function

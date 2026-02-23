@@ -1,0 +1,78 @@
+---
+import { getBlogCollection, groupCollectionsByCategory, sortMDByDate } from 'astro-pure/server'
+import { Button, FormattedDate } from 'astro-pure/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+
+export const prerender = true
+
+const allPosts = await getBlogCollection('handbook')
+const allPostsByDate = sortMDByDate(allPosts)
+const allPostsByCategory = groupCollectionsByCategory(allPostsByDate)
+
+const meta = {
+  description: 'A list of all handbooks',
+  title: 'Handbooks'
+}
+---
+
+<PageLayout {meta}>
+  <Button title='Back' href='/blog' variant='back' />
+
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-6 text-3xl font-medium'>Handbooks</h1>
+    </div>
+
+    {allPosts.length === 0 && <p>No posts yet.</p>}
+
+    <section id='content' class='animate' aria-label='Handbook post list'>
+      {
+        allPostsByCategory.map(([category, posts]) => (
+          <div class='relative mt-20'>
+            <h2
+              class='absolute start-0 -top-16 z-0 text-6xl font-bold text-transparent opacity-10'
+              style='-webkit-text-stroke-width:2px;-webkit-text-stroke-color:hsl(var(--foreground)/var(--un-text-opacity))'
+            >
+              <samp>{category}</samp>
+            </h2>
+            <p class='text-muted-foreground'>
+              {posts.length} post{posts.length > 1 && 's'}
+            </p>
+            <ul class='flex flex-col text-start'>
+              {posts.map((p) => (
+                <li class='post-preview group/card flex flex-col relative rounded-2xl border bg-background transition-colors ease-in-out px-5 py-2.5 hover:bg-muted border-0 bg-transparent py-2'>
+                  <a
+                    class='group/link w-full flex flex-col transition-all hover:text-primary sm:flex-row'
+                    href={`/handbook/${p.id}`}
+                    data-astro-prefetch
+                  >
+                    <FormattedDate class='min-w-[95px] py-1 text-xs' date={p.data.updatedDate ?? p.data.publishDate} />
+                    <div class='z-10 flex-grow'>
+                      <div class='flex justify-between'>
+                        <div>{p.data.title}</div>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='16'
+                          height='16'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke-width='2.5'
+                          stroke-linecap='round'
+                          stroke-linejoin='round'
+                          class='preview-redirect my-1 stroke-muted-foreground group-hover/link:stroke-primary'
+                        >
+                          <line x1='5' y1='12' x2='19' y2='12' class='translate-x-4 scale-x-0 transition-all duration-300 ease-in-out group-hover/link:translate-x-1 group-hover/link:scale-x-100' />
+                          <polyline points='12 5 19 12 12 19' class='translate-x-0 transition-all duration-300 ease-in-out group-hover/link:translate-x-1' />
+                        </svg>
+                      </div>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </section>
+  </main>
+</PageLayout>
