@@ -1,11 +1,11 @@
 ---
-title: 'Perfect Corruption Prompt'
+title: '一次AI生图测试'
 publishDate: '2025-12-05 08:00:00'
-description: 'Perfect Corruption Prompt for Midjourney And Test in Gemini Banana'
+description: '一次关于AI生图的测试，Prompt来源于Kkai'
 tags:
   - AI
   - prompt
-language: 'English'
+language: 'zh-CN/en-EN'
 ---
 
 ## Midjourney
@@ -69,3 +69,25 @@ A surreal, clinical scene in a pure white void. A group ofsmall baby chicks form
 ![alt text](image-8.png)
 
 猜测 Kkai 应该在生成之前用了一个 prompt 顶了一下颜色基调，不过抛去这个因素的影响，Nano 的生成效果太拟真了，反而没有那种怪诞的感觉。
+
+---
+
+> 更新于2026/3/2，Gemini最新推出了Banana2.0，让我们尝试一下
+
+Banana2.0提供了可以选择的风格，我们先用一个例子试一试能不能不选择风格直接生成，使用下面这个例子：
+
+A surreal, clinical scene in a pure white void. A person in ablack formal suit lies face-down on the ground, carrying amassive silicone ear sculpture on their back. The ear ishyper-detailed, flesh-toned, soft-looking, and oversizedalmost the size of the person’s torso. The figure’s posture isstrained yet emotionless, as if performing a ritual burden.Cold, controlled lighting;sharp shadows; minimalist,sculptural composition. Texture of the silicone ear is highlyrealistic, with subtle translucency. Matthew Barney-inspiredbodily symbolism and ceremonial stillness.
+
+![alt text](image-9.png)
+
+感觉好像也没变化多少，我们选用一种风格试一试：
+
+![alt text](image-10.png)
+
+好像没有变化啊。提示似乎要求我们需要选择风格后再上传图片并描述要怎么修改图片：
+
+![alt text](image-11.png)
+
+![alt text](image-12.png)
+
+感觉还是效果一般般，不知道他们是怎么搓出来的。

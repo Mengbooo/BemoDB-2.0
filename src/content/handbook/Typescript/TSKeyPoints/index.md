@@ -6,6 +6,8 @@ tags:
   - Typescript
 language: 'En'
 ---
+不知道什么时候在哪里找到的四张图，留存一下。
+
 ## Class
 
 ![alt text](image.png)

@@ -14,8 +14,8 @@ function diveChildren(item: TocItem, depth: number): TocItem[] {
 }
 
 export function generateToc(headings: readonly MarkdownHeading[]) {
-  // this ignores/filters out h1 element(s)
-  const bodyHeadings = [...headings.filter(({ depth }) => depth > 1)]
+  // 只展示 H1-H4，过滤掉 H5、H6
+  const bodyHeadings = [...headings.filter(({ depth }) => depth > 1 && depth < 5)]
   const toc: TocItem[] = []
 
   bodyHeadings.forEach((h) => {
