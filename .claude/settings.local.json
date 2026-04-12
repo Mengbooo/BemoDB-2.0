@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:tech.meituan.com)",
+      "WebFetch(domain:pomb.us)"
+    ]
+  }
+}
