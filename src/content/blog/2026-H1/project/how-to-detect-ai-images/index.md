@@ -1,6 +1,6 @@
 ---
 title: 如何判断一张图片是否由 AI 生成：一套多证据分析框架
-publishDate: 2026-05-07 18:00:00
+publishDate: 2026-05-07 20:00:00
 description: 'AI 图片判断不是二分类问题，而是一套多证据分析框架'
 tags:
   - AI
