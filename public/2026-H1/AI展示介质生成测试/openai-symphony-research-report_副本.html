@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>OpenAI Symphony 研究报告</title>
+<meta name="author" content="Codex">
+<meta name="description" content="基于 OpenAI Symphony 仓库、SPEC、参考实现与官方文章整理的中文研究报告，重点分析其定位、原理、系统架构、执行闭环、参考实现与适用边界。">
+<meta name="keywords" content="OpenAI Symphony, Codex, Agent Orchestration, Linear, App Server, Harness Engineering">
+<meta name="generator" content="Kami">
+<style>
+  @font-face {
+    font-family: "TsangerJinKai02";
+    src: url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/TsangerJinKai02-W04.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "TsangerJinKai02";
+    src: url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/TsangerJinKai02-W05.ttf") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm 22mm 22mm 22mm;
+    background: #f5f4ed;
+    @top-right {
+      content: string(section-title);
+      font-family: "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", Georgia, serif;
+      font-size: 8pt;
+      color: #6b6a64;
+    }
+    @bottom-center {
+      content: counter(page) "  ·  OpenAI Symphony 研究报告";
+      font-family: "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", Georgia, serif;
+      font-size: 9pt;
+      color: #6b6a64;
+    }
+  }
+  @page:first {
+    @top-right { content: ""; }
+    @bottom-center { content: ""; }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --parchment: #f5f4ed;
+    --ivory: #faf9f5;
+    --near-black: #141413;
+    --dark-warm: #3d3d3a;
+    --olive: #504e49;
+    --stone: #6b6a64;
+    --brand: #1B365D;
+    --border: #e8e6dc;
+    --border-soft: #e5e3d8;
+    --tag-bg: #E4ECF5;
+    --serif: "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", Georgia, serif;
+    --sans: var(--serif);
+  }
+
+  html, body { background: var(--parchment); }
+  @media screen {
+    body { max-width: 210mm; margin: 0 auto; padding: 20mm 22mm 22mm 22mm; }
+  }
+  body {
+    color: var(--near-black);
+    font-family: var(--serif);
+    font-size: 10.5pt;
+    line-height: 1.58;
+    letter-spacing: 0.2pt;
+    widows: 3;
+    orphans: 3;
+  }
+  p { margin: 0 0 10pt 0; }
+  ul, ol { margin: 6pt 0 10pt 0; padding-left: 20pt; }
+  ul li::marker, ol li::marker { color: var(--brand); }
+  strong { font-weight: 500; }
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Consolas, "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", monospace;
+    font-size: 9pt;
+    background: var(--ivory);
+    padding: 1pt 4pt;
+    border-radius: 2pt;
+    color: var(--dark-warm);
+  }
+
+  .cover {
+    min-height: 240mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40mm 0 0 0;
+    break-after: page;
+  }
+  .cover-eyebrow {
+    font-size: 10pt;
+    color: var(--brand);
+    letter-spacing: 1pt;
+    text-transform: uppercase;
+    margin-bottom: 18pt;
+  }
+  .cover-title {
+    font-size: 34pt;
+    font-weight: 500;
+    line-height: 1.14;
+    margin-bottom: 16pt;
+  }
+  .cover-sub {
+    font-size: 14pt;
+    color: var(--olive);
+    line-height: 1.5;
+    max-width: 86%;
+    margin-bottom: 26pt;
+  }
+  .cover-meta {
+    font-size: 10pt;
+    color: var(--stone);
+    line-height: 1.55;
+  }
+  .cover-meta strong { color: var(--dark-warm); }
+
+  .toc { break-after: page; }
+  .toc h2, h1 {
+    font-size: 22pt;
+    font-weight: 500;
+    margin-bottom: 12pt;
+    border-left: 2.5pt solid var(--brand);
+    border-radius: 1.5pt;
+    padding-left: 8pt;
+  }
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6pt 0;
+    border-bottom: 0.3pt dotted var(--border);
+    font-size: 11pt;
+  }
+  .toc-num {
+    color: var(--brand);
+    font-weight: 500;
+    min-width: 30pt;
+  }
+  .toc-title {
+    flex: 1;
+    padding-left: 6pt;
+  }
+  .toc-page {
+    color: var(--stone);
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1 {
+    line-height: 1.2;
+    color: var(--near-black);
+    break-after: avoid;
+  }
+  h2 {
+    font-size: 16pt;
+    font-weight: 500;
+    line-height: 1.25;
+    margin: 24pt 0 8pt 0;
+    color: var(--near-black);
+    break-after: avoid;
+    string-set: section-title content();
+  }
+  h3 {
+    font-size: 13pt;
+    font-weight: 500;
+    line-height: 1.3;
+    margin: 18pt 0 6pt 0;
+    color: var(--dark-warm);
+    break-after: avoid;
+  }
+  .chapter { break-before: page; }
+  .chapter-num {
+    font-size: 10pt;
+    color: var(--brand);
+    letter-spacing: 1pt;
+    text-transform: uppercase;
+    margin-bottom: 6pt;
+  }
+  .lead {
+    font-size: 12pt;
+    line-height: 1.58;
+    color: var(--dark-warm);
+    margin-bottom: 14pt;
+  }
+  .hl { color: var(--brand); font-weight: 500; }
+  .tag {
+    display: inline-block;
+    background: var(--tag-bg);
+    color: var(--brand);
+    font-size: 9pt;
+    font-weight: 500;
+    padding: 1pt 6pt;
+    border-radius: 3pt;
+    margin-right: 4pt;
+  }
+  .callout, .exec-summary, .takeaway {
+    background: var(--ivory);
+    border-left: 2pt solid var(--brand);
+    border-radius: 4pt;
+    padding: 12pt 14pt;
+    margin: 12pt 0;
+    break-inside: avoid;
+  }
+  .takeaway-label {
+    font-size: 9pt;
+    color: var(--brand);
+    letter-spacing: 0.5pt;
+    text-transform: uppercase;
+    margin-bottom: 4pt;
+  }
+  blockquote {
+    border-left: 2pt solid var(--brand);
+    margin: 12pt 0;
+    padding: 4pt 0 4pt 16pt;
+    color: var(--olive);
+    break-inside: avoid;
+  }
+  figure {
+    margin: 14pt 0;
+    break-inside: avoid;
+  }
+  figcaption {
+    font-size: 9pt;
+    color: var(--stone);
+    margin-top: 6pt;
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.3pt;
+    margin: 12pt 0;
+    break-inside: avoid;
+  }
+  th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--dark-warm);
+    padding: 6pt 8pt;
+    border-bottom: 1pt solid var(--border);
+  }
+  td {
+    padding: 5pt 8pt;
+    border-bottom: 0.3pt solid var(--border-soft);
+    vertical-align: top;
+  }
+  .striped tbody tr:nth-child(even) td { background: var(--ivory); }
+  .financial td:not(:first-child), .financial th:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14pt;
+  }
+  .small { font-size: 9pt; color: var(--stone); }
+  .source-list li { margin-bottom: 3pt; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div>
+    <div class="cover-eyebrow">Technical Report · Agent Orchestration</div>
+    <div class="cover-title">OpenAI Symphony<br>研究报告</div>
+    <div class="cover-sub">基于 GitHub 仓库、语言无关规范、Elixir 参考实现与 OpenAI 官方文章，对 Symphony 的定位、工作原理、系统架构、执行闭环、适用边界与落地价值做一次工程视角梳理。</div>
+    <div>
+      <span class="tag">Symphony</span>
+      <span class="tag">Codex</span>
+      <span class="tag">Linear</span>
+      <span class="tag">App Server</span>
+      <span class="tag">Harness Engineering</span>
+    </div>
+  </div>
+  <div class="cover-meta">
+    <strong>研究整理：Codex</strong><br>
+    版本 V1.0 · 2026-05-12<br>
+    形式：Kami 长文档 / 中文研究报告
+  </div>
+</section>
+
+<section class="toc">
+  <h2>目录</h2>
+  <div class="toc-item"><span class="toc-num">01</span><span class="toc-title">执行摘要</span><span class="toc-page">03</span></div>
+  <div class="toc-item"><span class="toc-num">02</span><span class="toc-title">项目定位与提出背景</span><span class="toc-page">04</span></div>
+  <div class="toc-item"><span class="toc-num">03</span><span class="toc-title">原理与核心架构</span><span class="toc-page">06</span></div>
+  <div class="toc-item"><span class="toc-num">04</span><span class="toc-title">Elixir 参考实现拆解</span><span class="toc-page">09</span></div>
+  <div class="toc-item"><span class="toc-num">05</span><span class="toc-title">价值、局限与落地建议</span><span class="toc-page">12</span></div>
+  <div class="toc-item"><span class="toc-num">06</span><span class="toc-title">附录：验证依据</span><span class="toc-page">14</span></div>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">01 · Executive Summary</div>
+  <h1>执行摘要</h1>
+  <p class="lead">从公开资料看，<span class="hl">Symphony 不是一个通用 Agent 框架，也不是一个新的 IDE 代理</span>。它更接近一个长期运行的编排服务：持续轮询工单系统，把每个工单映射为一个隔离工作区中的 Codex 运行单元，并围绕状态、重试、观测与交接建立完整闭环。</p>
+
+  <div class="exec-summary">
+    <h2>核心判断</h2>
+    <ul>
+      <li><strong>定位层面：</strong>Symphony 的控制平面是工单系统而不是聊天会话，目标是把“管理代理”升级为“管理工作”。</li>
+      <li><strong>架构层面：</strong>它把策略放进仓库内的 <code>WORKFLOW.md</code>，把执行隔离到按工单划分的 workspace，把会话驱动能力交给 <code>codex app-server</code>。</li>
+      <li><strong>方法论层面：</strong>它依赖 OpenAI 所说的 <span class="hl">harness engineering</span> 前提，即文档、验证、工具、状态转换与反馈回路都要可被代理读取和执行。</li>
+      <li><strong>工程价值：</strong>优势不是“单次编码更聪明”，而是把多任务并发、重试恢复、PR 推进、状态协同和夜间连续执行做成服务能力。</li>
+      <li><strong>成熟度判断：</strong>截至 2026-05-12，仓库 README、官方文章和 Elixir README 都明确把它描述为 <strong>engineering preview / prototype</strong>，更适合可信环境内试验，而非直接当作企业级成品采用。</li>
+    </ul>
+  </div>
+
+  <div class="takeaway">
+    <div class="takeaway-label">一句话结论</div>
+    Symphony 的真正创新不在“再造一个代理”，而在于把任务系统、工作区隔离、代理会话协议、仓库内策略文件和运维可观测性拼成了一套可持续运行的 agent orchestration service。
+  </div>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">02 · Positioning</div>
+  <h1>项目定位与提出背景</h1>
+  <p class="lead">OpenAI 在 2026 年 4 月 27 日发布的官方文章中，把 Symphony 定义为一个将项目管理板转化为 coding agents 控制平面的开源规范；其直接动机不是“让代理会写代码”，而是解决<span class="hl">人类在多会话监督中的注意力瓶颈</span>。</p>
+
+  <h2>为什么会出现 Symphony</h2>
+  <p>根据 OpenAI 的文章，交互式 coding agents 在能力提升后，新的瓶颈转移到了工程师的上下文切换成本。工程师往往能同时盯住三到五个会话，但再往上就需要频繁切换终端、反复 nudging、重启停滞任务。Symphony 的核心思路是把监督对象从“一个个会话”改成“一个个任务”。</p>
+
+  <blockquote>从公开表述推断，Symphony 的目标不是替代人类判断，而是把人类从会话级别的微观监督中解放出来，转向在任务优先级、验收标准和最终评审层面介入。</blockquote>
+
+  <h2>它与 Harness Engineering 的关系</h2>
+  <p>README 明确写到 Symphony 最适合运行在已经采用 harness engineering 的代码库中。OpenAI 在 2026 年 2 月 11 日的文章里将这一方法概括为“Humans steer. Agents execute.”，并强调知识必须落在仓库内、验证要可自动执行、代理可读性要优先于传统的人类中心组织方式。</p>
+
+  <div class="callout">
+    Symphony 并不是孤立产品，而是 harness engineering 的第二阶段。
+    第一阶段解决“怎样让代理在单仓库里可靠工作”，第二阶段解决“怎样让多项工作在无人值守条件下持续推进”。
+  </div>
+
+  <h2>公开可见的项目状态</h2>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>观察项</th>
+        <th>截至 2026-05-12 的公开信号</th>
+        <th>含义</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>仓库描述</td>
+        <td>“turns project work into isolated, autonomous implementation runs”</td>
+        <td>强调工作编排，而非单次代码生成</td>
+      </tr>
+      <tr>
+        <td>仓库规模</td>
+        <td>GitHub 页面显示约 23.4k stars、2.2k forks、12 commits、无 release</td>
+        <td>传播热度高，但版本发布仍早期</td>
+      </tr>
+      <tr>
+        <td>文档措辞</td>
+        <td>README 与 Elixir README 均提示 preview / prototype / trusted environments</td>
+        <td>生产采用需二次加固</td>
+      </tr>
+      <tr>
+        <td>实现形态</td>
+        <td>主仓库核心是 <code>SPEC.md</code>，附带实验性 Elixir/OTP 参考实现</td>
+        <td>OpenAI 希望传播的是模式与接口，而非单一官方守护进程</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">03 · Principles & Architecture</div>
+  <h1>原理与核心架构</h1>
+  <p class="lead">Symphony 的规范把系统拆成六层：策略层、配置层、协调层、执行层、集成层与观测层。这个拆法的重点在于<span class="hl">把“任务政策”与“运行机制”分离</span>，从而让不同语言、不同组织都能复刻同一套工作模型。</p>
+
+  <h2>本质原理：以工单为最小自治单元</h2>
+  <p>在规范里，每个 issue 会被归一化成稳定的领域对象，包含标识符、标题、描述、优先级、状态、标签、阻塞关系等信息。Orchestrator 定时轮询 issue tracker，判定哪些任务具备资格进入执行队列，再为其分配唯一工作区和代理运行尝试。</p>
+
+  <ul>
+    <li>工单不是提醒事项，而是编排主键。</li>
+    <li>工作区不是临时目录，而是 issue 级状态容器。</li>
+    <li>代理会话不是一次性聊天，而是可继续、可重试、可中断的执行过程。</li>
+    <li>PR、评论、状态更新不内建在 orchestrator 中，而通过策略文件和代理工具完成。</li>
+  </ul>
+
+  <h2>关键设计边界</h2>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>设计边界</th>
+        <th>Symphony 的选择</th>
+        <th>影响</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>系统职责</td>
+        <td>Scheduler / runner / tracker reader</td>
+        <td>保持核心简单，把业务动作下放给代理和仓库技能</td>
+      </tr>
+      <tr>
+        <td>策略来源</td>
+        <td>仓库内 <code>WORKFLOW.md</code></td>
+        <td>流程与代码共同版本化，便于团队自定义</td>
+      </tr>
+      <tr>
+        <td>运行状态</td>
+        <td>内存中维护调度状态，重启恢复依赖 tracker 与文件系统</td>
+        <td>降低持久化复杂度，但不追求分布式强一致</td>
+      </tr>
+      <tr>
+        <td>安全姿态</td>
+        <td>规范不强制唯一审批/沙箱策略</td>
+        <td>可适配不同环境，但需要组织自己补足安全治理</td>
+      </tr>
+      <tr>
+        <td>目标对象</td>
+        <td>长期运行的自动化服务</td>
+        <td>比 CLI 脚本更稳定，也比单次会话更可运维</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>工作闭环示意</h2>
+  <figure>
+    <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Symphony architecture flow">
+      <rect x="0" y="0" width="900" height="420" rx="24" fill="#faf9f5"/>
+      <rect x="40" y="52" width="170" height="68" rx="12" fill="#E4ECF5" stroke="#1B365D" stroke-width="2"/>
+      <text x="125" y="82" text-anchor="middle" font-size="24" fill="#1B365D" font-family="Georgia, serif">Linear</text>
+      <text x="125" y="105" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">工单状态 / 优先级 / 阻塞关系</text>
+
+      <rect x="275" y="32" width="350" height="108" rx="14" fill="#f5f4ed" stroke="#1B365D" stroke-width="2.4"/>
+      <text x="450" y="64" text-anchor="middle" font-size="26" fill="#1B365D" font-family="Georgia, serif">Symphony Orchestrator</text>
+      <text x="450" y="88" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">轮询、资格判断、并发控制、重试、状态对账</text>
+      <text x="450" y="110" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">WORKFLOW.md 读取、日志与状态面</text>
+
+      <rect x="690" y="52" width="170" height="68" rx="12" fill="#E4ECF5" stroke="#1B365D" stroke-width="2"/>
+      <text x="775" y="82" text-anchor="middle" font-size="24" fill="#1B365D" font-family="Georgia, serif">Status Surface</text>
+      <text x="775" y="105" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">日志 / Dashboard / API</text>
+
+      <rect x="108" y="214" width="210" height="92" rx="14" fill="#f5f4ed" stroke="#1B365D" stroke-width="2"/>
+      <text x="213" y="248" text-anchor="middle" font-size="24" fill="#1B365D" font-family="Georgia, serif">Workspace</text>
+      <text x="213" y="272" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">按 issue 隔离目录</text>
+      <text x="213" y="294" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">create / hook / cleanup</text>
+
+      <rect x="355" y="214" width="210" height="92" rx="14" fill="#f5f4ed" stroke="#1B365D" stroke-width="2"/>
+      <text x="460" y="248" text-anchor="middle" font-size="24" fill="#1B365D" font-family="Georgia, serif">Codex App Server</text>
+      <text x="460" y="272" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">thread / turn / tool calls</text>
+      <text x="460" y="294" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">JSON-RPC over stdio</text>
+
+      <rect x="602" y="214" width="210" height="92" rx="14" fill="#f5f4ed" stroke="#1B365D" stroke-width="2"/>
+      <text x="707" y="248" text-anchor="middle" font-size="24" fill="#1B365D" font-family="Georgia, serif">Repo Tools</text>
+      <text x="707" y="272" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">Git / CI / gh / Linear skill</text>
+      <text x="707" y="294" text-anchor="middle" font-size="14" fill="#504e49" font-family="Georgia, serif">验证、评论、PR、落地</text>
+
+      <path d="M210 86 L275 86" stroke="#1B365D" stroke-width="2.4" fill="none"/>
+      <polygon points="275,86 264,80 264,92" fill="#1B365D"/>
+
+      <path d="M625 86 L690 86" stroke="#1B365D" stroke-width="2.4" fill="none"/>
+      <polygon points="690,86 679,80 679,92" fill="#1B365D"/>
+
+      <path d="M450 140 L450 214" stroke="#1B365D" stroke-width="2.4" fill="none"/>
+      <polygon points="450,214 444,203 456,203" fill="#1B365D"/>
+
+      <path d="M318 260 L355 260" stroke="#1B365D" stroke-width="2.4" fill="none"/>
+      <polygon points="355,260 344,254 344,266" fill="#1B365D"/>
+
+      <path d="M565 260 L602 260" stroke="#1B365D" stroke-width="2.4" fill="none"/>
+      <polygon points="602,260 591,254 591,266" fill="#1B365D"/>
+
+      <path d="M707 214 C707 165 630 152 530 152" stroke="#1B365D" stroke-width="2" fill="none" stroke-dasharray="7 6"/>
+      <polygon points="530,152 541,146 541,158" fill="#1B365D"/>
+
+      <path d="M125 120 C125 177 201 184 280 184" stroke="#1B365D" stroke-width="2" fill="none" stroke-dasharray="7 6"/>
+      <polygon points="280,184 269,178 269,190" fill="#1B365D"/>
+
+      <text x="451" y="360" text-anchor="middle" font-size="16" fill="#504e49" font-family="Georgia, serif">Issue tracker 负责定义“做什么”，orchestrator 负责决定“什么时候做”，Codex 负责完成“如何做”。</text>
+    </svg>
+    <figcaption>图 1：Symphony 的典型闭环。它将工单、工作区、Codex 会话与仓库工具链连接为持续运行的任务编排系统。</figcaption>
+  </figure>
+
+  <h2>运行机制：从 issue 到持续执行</h2>
+  <ol>
+    <li>Issue tracker 提供候选任务、当前状态、阻塞关系与优先级。</li>
+    <li>Orchestrator 在固定轮询周期内决定哪些 issue 可被分派，并控制并发上限。</li>
+    <li>Workspace Manager 为每个 issue 创建确定性的隔离目录，并执行 <code>after_create</code>、<code>before_run</code>、<code>after_run</code>、<code>before_remove</code> 等 hook。</li>
+    <li>Agent Runner 将 issue 数据和 <code>WORKFLOW.md</code> 渲染成提示词，通过 <code>codex app-server</code> 启动 thread 和 turn。</li>
+    <li>代理通过动态工具和仓库技能完成评论、PR、验证、状态变更与反馈处理。</li>
+    <li>若 issue 仍处于活跃态，则继续下一 turn；若失败则进入带指数退避的 retry；若进入终态则清理工作区。</li>
+  </ol>
+
+  <h2>为什么说它是“会话解耦”而不是“PR 自动机”</h2>
+  <p>OpenAI 官方文章明确提到，Symphony 让工作从会话和 PR 中解耦。有些 issue 会产生多个 PR，有些 issue 只是调研或分析，并不一定触达代码库。由此可见，Symphony 的上层抽象是<span class="hl">deliverable-oriented work</span>，而不是单一代码补丁管线。</p>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">04 · Reference Implementation</div>
+  <h1>Elixir 参考实现拆解</h1>
+  <p class="lead">Elixir 版本是一个实验性参考实现，但其结构已经相当完整：既有长期运行服务需要的 supervision 风格，也有观测界面、配置解析、路径安全和远端 worker 支持。它说明 OpenAI 并不只是在写 spec，而是在验证 spec 的可操作性。</p>
+
+  <h2>实现模块一览</h2>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>模块</th>
+        <th>职责</th>
+        <th>关键信号</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>Orchestrator</code></td>
+        <td>轮询、并发控制、重试、运行态跟踪</td>
+        <td>使用 GenServer；维护 running、claimed、completed、retry_attempts 等状态</td>
+      </tr>
+      <tr>
+        <td><code>Workflow</code> / <code>WorkflowStore</code></td>
+        <td>读取并热更新 <code>WORKFLOW.md</code></td>
+        <td>前者解析 YAML front matter；后者缓存 last known good workflow</td>
+      </tr>
+      <tr>
+        <td><code>Config</code></td>
+        <td>把工作流配置转成 typed settings</td>
+        <td>负责 approval policy、sandbox、workspace root、tracker 等语义校验</td>
+      </tr>
+      <tr>
+        <td><code>Workspace</code></td>
+        <td>创建与清理 issue 级工作区</td>
+        <td>支持本地与 SSH worker；结合 <code>PathSafety</code> 防止路径逃逸</td>
+      </tr>
+      <tr>
+        <td><code>AgentRunner</code></td>
+        <td>为单个 issue 驱动 Codex 多轮执行</td>
+        <td>issue 仍活跃时继续 turn，直到达到 <code>max_turns</code> 或任务完成</td>
+      </tr>
+      <tr>
+        <td><code>Codex.AppServer</code></td>
+        <td>对接 Codex app-server</td>
+        <td>通过 stdio JSON-RPC 2.0 风格消息建立 initialize / thread / turn / tool 调用闭环</td>
+      </tr>
+      <tr>
+        <td><code>Linear.Adapter</code></td>
+        <td>对接 Linear GraphQL</td>
+        <td>支持候选任务拉取、状态刷新、评论创建、状态迁移</td>
+      </tr>
+      <tr>
+        <td><code>StatusDashboard</code> / <code>HttpServer</code></td>
+        <td>人类可观测性</td>
+        <td>Phoenix LiveView + JSON API，不把运维信息藏在黑盒里</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>执行细节：为什么 Elixir/OTP 合适</h2>
+  <p>Elixir README 直接给出的理由是 BEAM/OTP 擅长监督长期运行进程，且支持热代码重载，不需要在开发期中断已经运行的子代理。这个选择并非偶然，因为 Symphony 的本质不是一次性 CLI，而是会持续面向“多任务、多重试、可恢复”的服务。</p>
+
+  <h2><code>WORKFLOW.md</code> 是真正的策略内核</h2>
+  <p>参考实现附带的 <code>WORKFLOW.md</code> 非常关键。它不只写“你是一个代理”，而是定义了 issue 状态机、workpad 规范、PR 反馈处理协议、blocked-access escape hatch、验证规则和 land 流程。这意味着 Symphony 的“聪明”有很大一部分并不在 orchestrator 代码里，而是在仓库版本化的工作约束里。</p>
+
+  <div class="two-col">
+    <div class="callout">
+      <div class="takeaway-label">配置面</div>
+      <p>前置 YAML 定义 tracker 类型、project slug、workspace root、hooks、agent 并发度、Codex 命令、审批策略与沙箱策略。</p>
+    </div>
+    <div class="callout">
+      <div class="takeaway-label">提示词面</div>
+      <p>Markdown body 作为 prompt template，经 <code>Solid</code> 渲染 issue 变量与 attempt 信息，最终决定代理如何操作 Linear、Git、PR 与验证流程。</p>
+    </div>
+  </div>
+
+  <h2>与 Codex App Server 的结合方式</h2>
+  <p>OpenAI 开发者文档说明，<code>codex app-server</code> 支持基于 JSON-RPC 2.0 风格消息的双向通信，默认传输是 <code>stdio</code> JSONL，同时有 <code>thread/start</code>、<code>thread/resume</code>、turn 事件与 dynamic tool calls。Elixir 参考实现中的 <code>Codex.AppServer</code> 正是围绕这套协议构建：先 initialize，再创建 thread，随后在 turn 中监听消息、处理动态工具调用与审批结果。</p>
+
+  <table class="financial">
+    <thead>
+      <tr>
+        <th>能力</th>
+        <th>在 App Server 文档中的对应</th>
+        <th>在 Symphony 中的用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>双向协议</td>
+        <td><code>stdio</code> / WebSocket 上的 JSON-RPC 风格通信</td>
+        <td>让 orchestrator 能以进程方式控制会话</td>
+      </tr>
+      <tr>
+        <td>Thread 生命周期</td>
+        <td><code>thread/start</code>、<code>thread/resume</code>、<code>thread/read</code></td>
+        <td>让单 issue 任务拥有持续上下文</td>
+      </tr>
+      <tr>
+        <td>Turn 事件</td>
+        <td><code>turn/started</code> 等事件流</td>
+        <td>支撑进度观测与多轮继续执行</td>
+      </tr>
+      <tr>
+        <td>Dynamic tools</td>
+        <td><code>item/tool/call</code> 请求/响应流</td>
+        <td>为 Linear GraphQL 等 repo-local 工具注入调用能力</td>
+      </tr>
+      <tr>
+        <td>审批与沙箱</td>
+        <td>approval / sandbox policy 字段</td>
+        <td>决定在可信环境中使用多高自治级别</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">05 · Evaluation</div>
+  <h1>价值、局限与落地建议</h1>
+  <p class="lead">Symphony 的价值是真实的，但价值来自<span class="hl">组织能力与仓库治理提升后的复利</span>，而不是把一个仓库 clone 下来就能直接复现。它更像一套 operating model，而不是“拿来即用的自动开发神器”。</p>
+
+  <h2>核心价值</h2>
+  <ul>
+    <li><strong>降低监督成本：</strong>把人从会话级别推进为任务级别管理，减少 context switching。</li>
+    <li><strong>提升并发吞吐：</strong>多个 issue 可以在隔离工作区并行推进，失败可自动恢复。</li>
+    <li><strong>强化流程一致性：</strong>所有代理都沿同一 <code>WORKFLOW.md</code> 行为契约执行。</li>
+    <li><strong>把隐性工程经验显式化：</strong>review 方式、验证要求、状态切换条件都被写成机器可执行规则。</li>
+    <li><strong>适合夜间或异步推进：</strong>官方文章反复强调“持续运行”“never sleeps”的价值。</li>
+  </ul>
+
+  <h2>局限与风险</h2>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>风险面</th>
+        <th>具体体现</th>
+        <th>判断</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>前提门槛高</td>
+        <td>若仓库缺少高质量文档、自动化验证、可调用工具与清晰状态流，Symphony 会退化为大规模无效自动化</td>
+        <td>这是最大的落地门槛</td>
+      </tr>
+      <tr>
+        <td>安全姿态需自担</td>
+        <td>规范明确不强制统一审批或沙箱</td>
+        <td>企业环境必须自行补上权限、审计和网络隔离</td>
+      </tr>
+      <tr>
+        <td>任务适用性有限</td>
+        <td>OpenAI 官方文章明确承认，强判断、强歧义、强策略性工作仍更适合交互式会话</td>
+        <td>不应全盘替代工程师</td>
+      </tr>
+      <tr>
+        <td>实现成熟度早期</td>
+        <td>无正式 release，文档也强调 prototype</td>
+        <td>更适合内测、改造和二开</td>
+      </tr>
+      <tr>
+        <td>状态机可能过刚</td>
+        <td>官方文章承认早期把代理当 rigid nodes in a state machine 并不好用，后来转向目标导向</td>
+        <td>说明流程设计要给模型留推理空间</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>适合哪些团队</h2>
+  <p>最适合的不是“刚开始尝试 AI 编码”的团队，而是已经具备以下条件的团队：任务系统规范、文档在仓库内、CI 足够可靠、验收标准可被代理执行、对 agent-generated code 有审阅与回滚机制。尤其是大型 monorepo、基础设施迁移、批量 routine implementation、跨时区异步协作场景，会更容易体现收益。</p>
+
+  <h2>不适合直接照搬的场景</h2>
+  <p>如果团队当前仍高度依赖口头知识、零散聊天记录、人工点击验证和模糊需求，那么优先级应先放在补齐 harness，而不是上 Symphony。否则 orchestrator 只会把原本局部的不确定性放大到系统级。</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">落地顺序建议</div>
+    <p><strong>第一步</strong>先做 harness engineering：让文档、验证、工具和反馈回路可被代理读取。<strong>第二步</strong>再把一个低风险项目的 issue 流转接到 Symphony 风格 orchestrator。<strong>第三步</strong>最后才考虑多仓、多 worker、远程 SSH 与更高自治等级。</p>
+  </div>
+</section>
+
+<section class="chapter">
+  <div class="chapter-num">06 · Appendix</div>
+  <h1>附录：验证依据与研究备注</h1>
+
+  <h2>本次研究直接核对的材料</h2>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>材料</th>
+        <th>日期/状态</th>
+        <th>用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>GitHub 仓库主页 <code>openai/symphony</code></td>
+        <td>访问于 2026-05-12</td>
+        <td>核对仓库描述、stars/forks、commit 数、语言占比与 README 摘要</td>
+      </tr>
+      <tr>
+        <td><code>SPEC.md</code></td>
+        <td>Draft v1</td>
+        <td>分析规范层职责边界、目标与非目标、核心领域模型和组件划分</td>
+      </tr>
+      <tr>
+        <td><code>elixir/README.md</code> 与 <code>elixir/WORKFLOW.md</code></td>
+        <td>主分支当前版本</td>
+        <td>分析运行方式、配置项、状态机约束、提示词策略和依赖栈</td>
+      </tr>
+      <tr>
+        <td>Elixir 关键模块源码</td>
+        <td>主分支当前版本</td>
+        <td>分析 orchestrator、workspace、agent runner、workflow store、app-server client 的真实实现</td>
+      </tr>
+      <tr>
+        <td>OpenAI 官方文章《An open-source spec for Codex orchestration: Symphony》</td>
+        <td>2026-04-27</td>
+        <td>核对项目背景、价值主张、适用范围与组织收益表述</td>
+      </tr>
+      <tr>
+        <td>OpenAI 官方文章《Harness engineering: leveraging Codex in an agent-first world》</td>
+        <td>2026-02-11</td>
+        <td>理解 Symphony 的方法论前置条件</td>
+      </tr>
+      <tr>
+        <td>OpenAI 开发者文档《Codex App Server》</td>
+        <td>访问于 2026-05-12</td>
+        <td>核对 stdio / thread / turn / dynamic tools / approval / sandbox 协议能力</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>研究备注</h2>
+  <ul class="source-list">
+    <li>本报告将 <strong>规范层</strong> 与 <strong>参考实现层</strong> 明确区分，避免把 Draft v1 规范误写成产品保证。</li>
+    <li>仓库当前热度和目录结构是时点信息，已按 2026-05-12 访问结果记录。</li>
+    <li>由于 Symphony 明确定位为 engineering preview，本报告更偏向“架构研究与落地评估”，而非采购建议。</li>
+  </ul>
+
+  <p class="small">完</p>
+</section>
+
+</body>
+</html>
