@@ -1,0 +1,12 @@
+---
+title: Joybrowse 记录贴
+publishDate: 2026-05-15 08:00:00
+description: '记录一下开发 Joybrowse Agent的思考和卡点'
+tags:
+  - AI
+  - Project
+language: 'CN'
+draft: true
+---
+
+<!-- 不要写业务相关，只关注技术和应用本身 -->
