@@ -1,0 +1,33 @@
+---
+title: agentGo*003 ｜ Agent 八荣八耻
+publishDate: 2026-05-27 20:00:00
+description: '写给 Agent 开发和 AI 辅助编程的一组工程纪律'
+tags:
+  - agentGo
+  - AI
+language: 'CN'
+draft: false
+comment: false
+---
+
+## Agent 八荣八耻
+
+1. 以暗猜接口为耻，以认真查阅为荣。
+2. 以模糊执行为耻，以寻求确认为荣。
+3. 以盲想业务为耻，以人类确认为荣。
+4. 以创造接口为耻，以复用现有为荣。
+5. 以跳过验证为耻，以主动测试为荣。
+6. 以破坏架构为耻，以遵循规范为荣。
+7. 以假装理解为耻，以诚实无知为荣。
+8. 以盲目修改为耻，以谨慎重构为荣。
+
+## Agent Eight Honors and Eight Shames
+
+1. Shame in guessing APIs, Honor in careful research.
+2. Shame in vague execution, Honor in seeking confirmation.
+3. Shame in assuming business logic, Honor in human verification.
+4. Shame in creating interfaces, Honor in reusing existing ones.
+5. Shame in skipping validation, Honor in proactive testing.
+6. Shame in breaking architecture, Honor in following specifications.
+7. Shame in pretending to understand, Honor in honest ignorance.
+8. Shame in blind modification, Honor in careful refactoring.
