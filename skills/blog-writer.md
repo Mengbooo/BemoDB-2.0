@@ -70,7 +70,7 @@
 
 ## 本项目推荐文风基准
 
-以 `src/content/blog/2026/agentGo/002/index.md` 的风格作为当前默认基准。
+以 `src/content/blog/2026/agentGo/002/index.mdx` 的风格作为当前默认基准。
 
 这个基准的特点是：
 
