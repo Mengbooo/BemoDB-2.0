@@ -520,7 +520,7 @@ function calculateDistance(p1: Point, p2: Point): number {
 const origin: Point = { x: 0, y: 0 };
 ```
 
-在这里，Point 成为了一个可复用的类型，用于描述任何具有 x 和 y 坐标的对象。这比在每个函数签名中都写一遍 { x: number; y: number; } 要优雅得多。
+在这里，Point 成为了一个可复用的类型，用于描述任何具有 x 和 y 坐标的对象。这比在每个函数签名中都写一遍 `{ x: number; y: number; }` 要优雅得多。
 
 3. 结合泛型创造更灵活的类型
 
@@ -1073,7 +1073,7 @@ let output = identity<string>("myString"); // output 的类型是 string
 let anotherOutput = identity(123); // output 的类型是 number
 ```
 
-在第二个例子中，我们没有显式地用 <number> 来指定类型，但 TypeScript 非常智能，它会根据我们传入的参数 123，自动推断出 T 应该被 number 替代。
+在第二个例子中，我们没有显式地用 `<number>` 来指定类型，但 TypeScript 非常智能，它会根据我们传入的参数 123，自动推断出 T 应该被 number 替代。
 
 现在，我们得到了两全其美的结果：一个可以处理任何类型的函数，并且完全保留了类型信息，类型安全得到了百分之百的保障。
 
@@ -1241,7 +1241,7 @@ updateUser(1, { username: "123" }); // 合法
 updateUser(1, { email: "123@123.com", bio: "Loves TS." }); // 合法
 ```
 
-`Partial<User>` 自动生成了一个新类型 { id?: number; username?: string; ... }，它允许我们传入 User 属性的任意子集，而无需手动为每个属性添加 ?。
+`Partial<User>` 自动生成了一个新类型 `{ id?: number; username?: string; ... }`，它允许我们传入 User 属性的任意子集，而无需手动为每个属性添加 ?。
 
 ### `Readonly<T>`：不可变
 
