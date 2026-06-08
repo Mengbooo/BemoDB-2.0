@@ -19,7 +19,7 @@ TOTP 本质上是一个数学函数，它接受两个输入：
 
 算法公式如下：
 $$
-TOTP = \text{Truncate}(\text{HMAC-SHA1}(K, \lfloor \frac{t}{30} \rfloor))
+TOTP = \text&#123;Truncate&#125;(\text&#123;HMAC-SHA1&#125;(K, \lfloor \frac{t}{30} \rfloor))
 $$
 
 ## 2. 实例拆解：一步步计算
@@ -41,7 +41,7 @@ $$
 
 使用 HMAC-SHA1 算法，将密钥和时间计数器混合。
 $$
-H = \text{HMAC-SHA1}(\text{"Hello!"}, \text{0x0000000003328D00})
+H = \text&#123;HMAC-SHA1&#125;(\text&#123;"Hello!"&#125;, \text&#123;0x0000000003328D00&#125;)
 $$
 计算得出的 20 字节哈希值（Hex）如下：
 `3d 21 8b 72 90 0f e6 9a 2e 56 ... 05`
