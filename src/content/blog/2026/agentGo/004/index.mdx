@@ -1,0 +1,233 @@
+---
+title: agentGo*004 ｜ Hugging Face Agent Course U1
+publishDate: 2026-06-15 12:00:00
+description: 'Hugging Face Agent Course Record'
+tags:
+  - agent
+  - ai
+language: 'CN'
+comment: false
+---
+
+## 什么是智能体
+
+智能体是一个系统，它利用人工智能模型与环境交互，以实现用户定义的目标。它结合推理、规划和动作执行（通常通过外部工具）来完成任务。
+
+智能体可以被拆分为两个主要部分：大脑（LLMs）、身体（能力/工具）。有了大脑，智能体能够理解用户传来的需求，并知晓当前环境有哪些可利用的条件；有了身体，智能体能与环境产生交互，工具的边界决定了智能体能力的边界。
+
+> 闲话一则：当LLM能力越来越强后，只需要提供基础的能力，智能体应该能自己造出自己所需要的工具。人类有了双手，于是他们制造出了智能体。
+
+## 什么是 LLMs
+
+LLM 是大语言模型，它擅长的能力是理解和生成人类语言，这类模型多用于智能体。
+
+> 除此之外还有另外的模型，它们侧重的能力各不相同，比如 VLM 视觉语言模型，能够识别图像，又比如一些端侧的小模型，比如最近写的苹果 WWDC26 文章，就提到了苹果的端侧模型。但是选用 LLM 作为智能体大脑，这是很自然的决定。
+
+大多数 LLM 是基于 Transformer 架构构建的，它有三种用法类型：
+
+- 编码器，一般用于文本分类、语义搜索、实体识别等等
+- 解码器，专注于逐个生产 token 以完成序列，用于代码生产、文本生成等
+- 序列到序列（编码器-解码器，Seq2Seq、Encoder-Decoder），用于翻译、摘要、改写等
+
+具体内容不做探究，总之大部分的 LLM 都是基于解码器的模型。
+
+token 是 LLM 处理信息的基本单位，可以近似理解为「单词」，但是不太一样，每个 token 会对应不同的 ID，比如 interest 对应 13014、ed 对应 291，组合起来的 interested 对应 84798，也就是说具体的单词（自然语言单元）和 token（LLM处理信息单元）有一套组合规则和映射关系。
+
+> 英语估计有 60 万个单词，但一个 LLM 的词汇表可能只有大约 32,000 个 token
+
+当然 LLM 包含一些特殊的 token 用于 LLM 的处理，比如 Deepseek-R1 的 `<|end_of_sentence|>` 代表结束，也就是 EOS。
+
+LLM 的基本原理是 **在给定一系列前一个 token 的情况下，预测下一个 token**。这里我们说说「预测下一个 token」。
+
+> Huggingface 原话：大语言模型 (LLM) 被认为是自回归的，这意味着一次通过的输出成为下一次的输入。这个循环持续进行，直到模型预测下一个词元为 EOS（结束符）词元，此时模型可以停止。
+
+举一个简单的例子：前面输出「今天天气」，预测出的下一个 token 可能就是「很好」、「不好」等等，直到预测出 EOS（结束符）词元，此时模型可以停止。
+
+我们刚才提到了预测出的下一个 token 可能就是「很好」、「不好」。所以这里存在一个选择策略，通常来讲会通过对可能的 token 打分，选择分数最高的那一个 token。当然还存在一些其他的策略，这里略过。
+
+**Attention is all you need**，这个应该是 AI 圈比较出圈的一句话，这里的实际上是指：在预测下一个词时，句子中的每个词并不是同等重要的。比如「中国的首都是」这句话中，「中国」和「首都」的注意力权重更多。
+
+大语言模型会在大型文本数据集上进行训练，通过无监督的学习，它们能模仿学习语言的模式，能够泛化出未见过的数据。这种训练一般被称为「预训练」，之后，还能在特定的场景下进行不同的特定训练。
+
+关于大语言模型的工作原理，更详细的内容在 https://huggingface.co/learn/llm-course/chapter1/1
+
+## 聊天模版、消息和特殊 token
+
+除了用户消息之外，我们在 LLM 中还定义了系统消息（System Message），也叫系统提示，它们作为持久性指令，指导每个后续交互。比如我们定义的「你是一个前端专家」这种系统消息，它也可能包含一些工具的声明。
+
+用户消息和 LLM 的回应共同构成了对话消息，聊天模板通过保存对话历史记录、存储用户和助手之间的前序交流来维持上下文。这导致更连贯的多轮对话。例如
+
+```py
+conversation = [
+    {"role": "user", "content": "I need help with my order"},
+    {"role": "assistant", "content": "I'd be happy to help. Could you provide your order number?"},
+    {"role": "user", "content": "It's ORDER-123"},
+]
+```
+
+聊天模版会将消息转为不同格式的提示，目的在于让模型能够理解，比较常见的模版格式有 ChatML，格式转换后的提示如下：
+
+```py
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a helpful chatbot.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Hi there!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+Hello, human!<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Can I ask a question?<|eot_id|>
+```
+
+具体内容不做深究，总之这节的意思是，需要经过一定的处理和格式化，转为提示后，才能保证 LLM 的处理，而这里的处理和格式化，就是「消息」这一 LLM 底层系统的责任。
+
+## 什么是工具
+
+工具是赋予 LLM 的函数，该函数应实现明确的目标。比较常见的就是查询时间的工具。如果不提供此工具，LLM 可能会产生幻觉。
+
+构建工具时要考虑两个问题：工具如何运作 / 如何为 LLM 提供工具。
+
+首先是第一个问题，LLM 不能自主调用工具，所以本质上我们是教导 LLM 知道工具，然后通过生产代码形式的文本，在智能体的应用层里调用工具，后者再将输出返回给 LLM，由 LLM 生产最终响应给用户。
+
+然后是第二个问题：核心是通过系统提示向模型描述可用的工具，需要精确描述工具功能和预期的输入格式。所以得保证工具的格式一致性。Huggingface 在这里提供了三种具体措施：
+
+- 自动化工具描述生成。这里没太看懂，但应该是使用 python 装饰器来自动生成工具描述，有点像公司的 JAPI 自动生成
+- 通用工具类实现，主流工具库是这么干的，下面是伪代码：
+
+```py
+// 定义复用工具的结构体
+CLASS Tool
+    PROPERTIES:
+        name: 字符串
+        description: 字符串
+        func: 函数引用
+        arguments: 列表 (存储 "参数名: 参数类型")
+        outputs: 字符串
+
+    // 构造函数
+    CONSTRUCTOR(name, description, func, arguments, outputs)
+        self.name = name
+        self.description = description
+        self.func = func
+        self.arguments = arguments
+        self.outputs = outputs
+    END CONSTRUCTOR
+
+    // 将工具信息转换为可读文本
+    FUNCTION to_string()
+        // 将参数列表拼接为 "arg1: type1, arg2: type2" 的格式
+        args_text = JOIN(self.arguments, WITH = ", ")
+        
+        RETURN "Tool Name: " + self.name + 
+               ", Description: " + self.description + 
+               ", Arguments: " + args_text + 
+               ", Outputs: " + self.outputs
+    END FUNCTION
+
+    // 执行该工具底层包裹的函数
+    FUNCTION execute(args...)
+        RETURN self.func(args...)
+    END FUNCTION
+END CLASS
+```
+
+- MCP，模型上下文协议（MCP）是一种开放式协议，它规范了应用程序向 LLM 提工具的方式。模型只需要支持这一个协议，就能连接全世界所有符合 MCP 标准的工具箱，解决了 LLM 生态碎片化的问题。
+
+## 思考-行动-观察循环
+
+完整的智能体工作流程，就是一个思考-行动-观察循环。
+
+- 思考：智能体的 LLM 决定下一步该干什么
+- 行动：智能体通过相关参数调用工具采取行动
+- 观察：模型对工具的响应进行反思
+
+通过这一循环，智能体能将一个复杂问题分解为更小更容易管理的步骤，这其实就是我们所说的 ReAct，即”推理”（Reasoning/Think）与”行动”（Acting/Act）的结合。
+
+常见思维模式有：
+
+* **Planning（规划）**
+* **Analysis（分析）**
+* **Decision Making（决策）**
+* **Problem Solving（问题解决）**
+* **Memory Integration（记忆整合）**
+* **Self-Reflection（自我反思）**
+* **Goal Setting（目标设定）**
+* **Prioritization（优先级排序）**
+
+动作是智能体与其环境交互的具体步骤，常见执行动作的方式有：
+
+- 以 JSON 格式指定
+- 编写代码块，由外部解释执行
+- Function calling，它是 JSON 智能体的子类，它天生自带工具接口，为每个动作生成特定新消息
+
+## 第一个智能体
+
+代码如下：
+
+```py
+from smolagents import CodeAgent, DuckDuckGoSearchTool, InferenceClientModel, load_tool, tool
+import datetime
+import requests
+import pytz
+import yaml
+from tools.final_answer import FinalAnswerTool
+
+from Gradio_UI import GradioUI
+
+# Below is an example of a tool that does nothing. Amaze us with your creativity!
+@tool
+def my_custom_tool(arg1:str, arg2:int)-> str: # it's important to specify the return type
+    # Keep this format for the tool description / args description but feel free to modify the tool
+    """A tool that does nothing yet
+    Args:
+        arg1: the first argument
+        arg2: the second argument
+    """
+    return "What magic will you build ?"
+
+@tool
+def get_current_time_in_timezone(timezone: str) -> str:
+    """A tool that fetches the current local time in a specified timezone.
+    Args:
+        timezone: A string representing a valid timezone (e.g., 'America/New_York').
+    """
+    try:
+        # Create timezone object
+        tz = pytz.timezone(timezone)
+        # Get current time in that timezone
+        local_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+        return f"The current local time in {timezone} is: {local_time}"
+    except Exception as e:
+        return f"Error fetching time for timezone '{timezone}': {str(e)}"
+
+
+final_answer = FinalAnswerTool()
+model = InferenceClientModel(
+    max_tokens=2096,
+    temperature=0.5,
+    model_id='Qwen/Qwen2.5-Coder-32B-Instruct',
+    custom_role_conversions=None,
+)
+
+
+# Import tool from Hub
+image_generation_tool = load_tool("agents-course/text-to-image", trust_remote_code=True)
+
+with open("prompts.yaml", 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+agent = CodeAgent(
+    model=model,
+    tools=[final_answer], # add your tools here (don't remove final_answer)
+    max_steps=6,
+    verbosity_level=1,
+    grammar=None,
+    planning_interval=None,
+    name=None,
+    description=None,
+    prompt_templates=prompt_templates
+)
+
+
+GradioUI(agent).launch()
+```

@@ -55,7 +55,7 @@ span.katex-display {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
   border-radius: 0.5rem;
-  background-color: hsl(var(--muted) / var(--un-bg-opacity, 1)) !important;
+  background-color: hsl(var(--background) / var(--un-bg-opacity, 1)) !important;
 
   /* Code container */
   & pre {
@@ -81,7 +81,7 @@ span.katex-display {
         bottom: 0;
         content: '';
         display: block;
-        background-color: hsl(var(--muted) / var(--un-bg-opacity, 1));
+        background-color: hsl(var(--background) / var(--un-bg-opacity, 1));
         z-index: 1;
       }
       & .line {
@@ -91,7 +91,7 @@ span.katex-display {
           content: counter(step);
           counter-increment: step;
           color: hsl(var(--muted-foreground) / 0.6);
-          background-color: hsl(var(--muted) / var(--un-bg-opacity, 1));
+          background-color: hsl(var(--background) / var(--un-bg-opacity, 1));
           inset-inline-start: 0;
           justify-content: end;
           display: inline-flex;
@@ -129,6 +129,7 @@ span.katex-display {
     position: absolute;
     top: 0.75rem;
     right: 0;
+    background-color: hsl(var(--background) / var(--un-bg-opacity, 1));
   }
   & button.copy {
     transition: opacity 0.3s;

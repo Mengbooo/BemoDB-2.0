@@ -39,7 +39,7 @@ html {
   --radius: 0.5rem;
 }
 .dark {
-  --background: 240 20.54% 5.2%;
+  --background: 0 0% 0%;
   --foreground: 0 0% 98%;
   --card: 240 10% 3.9%;
   --card-foreground: 0 0% 98%;

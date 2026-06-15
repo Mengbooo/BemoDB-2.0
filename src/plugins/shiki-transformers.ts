@@ -80,7 +80,7 @@ export const addLanguage = (): ShikiTransformer => {
       const span = h(
         'span',
         {
-          class: 'language ps-1 pe-3 text-sm bg-muted text-muted-foreground'
+          class: 'language ps-1 pe-3 text-sm bg-background text-muted-foreground'
         },
         this.options.lang
       )

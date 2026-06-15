@@ -98,7 +98,7 @@ const typographyConfig = {
         padding: '0.3em 0.5em',
         border: '1px solid hsl(var(--border) / 1)',
         'border-radius': 'var(--radius)',
-        'background-color': 'hsl(var(--muted) / var(--un-bg-opacity, 1))'
+        'background-color': 'hsl(var(--background) / var(--un-bg-opacity, 1))'
       },
       ':not(pre)>code::before,:not(pre)>code::after': {
         content: 'none'
