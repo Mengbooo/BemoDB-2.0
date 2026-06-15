@@ -39,3 +39,6 @@ ignore.*
 bunfig.toml
 /src/content/blog/test.*
 /test/
+
+# Generated social card images
+src/content/blog/**/social-cards/output/
