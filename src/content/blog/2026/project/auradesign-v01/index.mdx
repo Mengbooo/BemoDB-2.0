@@ -1,0 +1,122 @@
+---
+title: 'AuraDesign V0.1 — 一个设计 skill 的主流程与取舍'
+publishDate: '2026-06-24 17:00:00'
+description: 'AuraDesign V0.1 与其他四个设计 skill 的对比分析：独有机制、借鉴来源和阶段性取舍'
+tags:
+  - ai
+  - engineering
+  - project
+language: 'CN'
+draft: false
+comment: false
+---
+
+AuraDesign 是一个通过 CLI 分发给 Claude Code / Codex 等 Agent 平台使用的设计 skill。它在今年六月发布了 V0.1，目前处于 MVP 阶段。这篇文章记录了这个阶段的主流程设计、与四个同类 skill 的差异，以及做这些取舍时背后的考虑。
+
+市面上同时存在几个与"AI + 设计"相关的开源项目：impeccable、ui-ux-pro-max、baoyu-design 和 open-design。它们各自的侧重点差异很大，但共同构成了一个参考坐标系。把 AuraDesign 放在这个坐标系里对比，可以帮助理解它在哪些地方选择了不同的路径，哪些地方做了简化，哪些地方借鉴了前人的工作。
+
+> AuraDesign 的核心流程是 init → draw → polish → build，每一步都有明确的 Stage Gate 和确定性脚本做质量保证。
+
+## 四个竞品各自在做什么
+
+在展开 AuraDesign 的流程之前，有必要先理清其他四个项目分别解决什么问题。它们的定位差异决定了后续所有设计选择的分岔。
+
+**impeccable** 的核心是"检查"。它提供 44 条确定性规则扫描 AI 生成的 UI 代码，告诉你哪里不对。它的 23 个命令覆盖了 craft、audit、polish、live 等环节，但没有"init → draw → polish → build"这样的线性主流程。设计假设是：已有 AI 生成的 UI 代码存在，impeccable 负责审查它。它的确定性规则和反模式声明是同类项目中最完备的。
+
+**ui-ux-pro-max** 的核心是"推荐"。用户描述产品，它从 161 条行业规则的 CSV 知识库中检索匹配项，输出风格、配色、字体建议。它不生成 HTML 原型，不审查设计稿，不做工程交接。它解决的是"新项目不知道长什么样"的问题。
+
+**baoyu-design** 的核心是"产出"。它逆向 Claude Design 引擎的能力到本地，产出 HTML 原型，再导出为 PPTX/PDF/MP4。它有丰富的导入（Figma .fig 离线解码）和导出能力，但主流程是非结构化的：Agent 澄清问题 → 收集上下文 → 产出 HTML → 预览迭代。没有 Stage Gate，没有项目模式判定，没有独立的审查阶段。它的野心更大——试图做一个 hyperframe、PPT skill、设计 skill 的合集。
+
+**open-design** 的核心是"平台"。它是一个完整的 Electron 桌面端设计平台，配有 Express daemon、150 个预建设计系统、261 个插件。它不嵌入项目，而是作为独立应用运行。能力覆盖生图、视频、网页等多种产物，比 baoyu-design 还要宽泛。
+
+四个项目的共同特征是：它们都不区分"项目里已经有设计系统"和"从零开始"这两种场景。要么假设从零开始（ui-ux-pro-max、open-design），要么不关心这个区别（impeccable、baoyu-design）。AuraDesign 的主流程正是从这个缺口开始的。
+
+## 为什么第一步是判定项目模式
+
+AuraDesign 预设的场景是公司内部、非设计岗位的员工。这个场景下，绝大多数设计需求不是新项目从零搭建，而是在已有产品上新增页面或重构旧页面。
+
+如果不做判定，Agent 要么在空项目里硬找组件（产生噪音），要么在有丰富组件的项目里无视已有系统（产生不一致）。两种结果都不可接受。
+
+`project-mode.mjs` 就是为这个设计的。它做纯文件系统扫描，收集 7 个"设计信号"，每个信号有明确的检测方法和权重：
+
+| 信号 | 权重 | 检测方法 |
+|------|------|---------|
+| design-contract | 8 | 根目录存在 `DESIGN.md`，内容非空模板 |
+| components | 4 | 存在 ≥4 个 `.jsx/.tsx/.vue/.svelte` 组件文件 |
+| style-tokens | 4 | CSS 中存在 `--var: value` 声明或设计 token 配置 |
+| visual-assets | 2 | ≥6 个图片/字体/动画文件 |
+| routes | 2 | 存在 ≥4 个 page/index 路由文件 |
+| thin-components | 1 | 组件文件存在但 < 4 个 |
+| thin-styles | 1 | 样式文件存在但不成体系 |
+
+总分 ≥ 6 判定为 existing，否则为 greenfield。阈值 6 是刻意设计的：4 个组件文件(4 分) + 2 个路由(2 分)刚好 6 分——这意味着"有可复用组件库 + 有一定页面规模"才被认为是 existing。一个只有 `app/page.tsx` + 默认 CSS 的 Next.js 脚手架得分最高为 routes(2) + thin-styles(1) = 3 分，不会被误判。
+
+这个判定是纯确定性的：没有 LLM 参与，零 token 消耗，CI 可复现。四个竞品都没有这个机制。
+
+> 判定 existing 还是 greenfield，决定了后续所有行为——是学习已有组件和 token，还是从 Gallery 模板建立设计契约。
+
+## existing 路径：learn-kernel 的学习逻辑
+
+当 project-mode 返回 existing，AuraDesign 运行 `learn-kernel.mjs` 做 7 步扫描：读 package.json → 读构建配置 → 发现组件 → 提取 CSS 变量 → 发现路由 → 素材分类和使用关系 → 交互信号扫描。每一步产出明确的结构化数据。
+
+扫描结果写入两个文件。`evidence.json` 是机器可读的结构化数据，供后续脚本程序化查询。`kernel.md` 是人类和 Agent 都能读的摘要，关键是包含一个 **Agent Notes To Fill** 区域——列出扫描器发现不了、需要 Agent 手动补充的字段：visual DNA（这个产品是克制的工具型 UI 还是营销型？）、layout patterns、reusable components、state patterns、产品特有的反模式、不确定的推测。
+
+这种两层结构的设计意图是明确的：证据收集由脚本确定性地完成，语义推理留给 Agent。脚本不猜测"这个项目的视觉 DNA 是什么"，但把所有原始证据整理好，让 Agent 在推理时有据可依。Agent Notes To Fill 区域也标记了哪些内容是推断的、哪些是脚本确认的——避免把推断伪装成事实。
+
+baoyu-design 有类似的能力（通过 `import-from-github` 子技能导入代码库作为设计上下文），但依赖 Agent 手动触发，没有自动化扫描 + 证据收集 + kernel 生成这一套。impeccable、ui-ux-pro-max、open-design 完全不学习项目代码。
+
+## greenfield 路径：模板够用吗
+
+当 project-mode 返回 greenfield，没有可学习的代码。AuraDesign 让用户从 AuraGallery 选择模板（目前 4 个：vercel/linear/stripe/ibm）作为 DESIGN.md 起点，再由用户提供 PRD 或描述来完成 PRODUCT.md。
+
+这条路借鉴了 open-design 的预建设计系统概念，但做了轻量化——4 个精选模板 vs 150 个。也参考了 ui-ux-pro-max 的"行业+产品类型→设计风格"映射思路，但目前还是手动选择，自动推荐是中期方向。
+
+当前 Greenfield Init 的实际效果存在分化：旧项目强相关的新页面和旧项目重构效果不错，但新项目新页面和旧项目弱相关的新页面效果不好——它们缺少可参考的组件和样式。Gallery 模板能否填补这个缺口，还需要更多真实 case 验证。
+
+## shape → prototype：两阶段生成
+
+AuraDesign 的 draw 阶段分为严格有序的两步：先完成 `shape.md`（15 个必填章节的设计蓝图），再基于蓝图生成 `prototype.html`（8 条质量要求的高保真原型）。
+
+shape.md 承担了三个功能。第一，强制设计思考先于代码——在写 HTML 之前回答清楚：为什么用这个布局？颜色从哪个 token 来？空态和错误态考虑了吗？第二，作为评审点——用户改一份 Markdown 文档的成本远低于改一份完整的 HTML 原型。第三，作为后续阶段的依据——polish 审查和 build 组件映射都依赖 shape.md 中记录的决策。
+
+baoyu-design 没有蓝图概念，Agent 澄清问题后直接产 HTML。impeccable 有一个可选的 `/impeccable shape` 命令，但 AuraDesign 的区别在于把它做成了强制 Stage Gate + 结构化模板——15 个固定章节通过 `draw-init.mjs` 生成带 TODO 的脚手架。shape 不完成，不能进入 prototype 生成。
+
+prototype.html 的质量约束主要借鉴了 baoyu-design 的高保真设计标准（HTML-first、CSS 变量、真实文案、状态覆盖），但增加了两个额外约束：无外部依赖（确保原型可移植）和不碰 src（确保设计产物与业务源码隔离）。
+
+## Polish：检查之后还要修
+
+Polish 是 AuraDesign 的"质检 + 修复"环节。前置条件是 draw 阶段必须完成（_aura.json + shape.md + prototype.html 三个文件齐全），否则 Agent 中断并提示先完成上一步。
+
+整个 Polish 的流程是：先跑 `polish.mjs` 脚本收集机器能发现的所有问题（文件不全、引用断开、artifact 记录缺失），写入 `polish-report.json` 和 `polish.md` 模板。然后 Agent 拿着脚本结果，对照三份文档（shape.md、PRODUCT.md、DESIGN.md + kernel）逐项审查原型。接着 Agent 修复能修的问题（文本溢出、响应式间距、缺失状态、硬编码值替换为 CSS 变量、补交互逻辑），但有两类东西不能碰：业务源码和设计方向。最后出中文报告并重新验证。
+
+这个阶段的确定性规则分三类：文件级检查（check-target.mjs，无依赖，始终执行）、反模式规则（anti-patterns.md，目前 10 条描述性规则，Agent 手动执行）、浏览器级检查（screenshot / a11y / overflow / design-system，需 Playwright，可选）。
+
+impeccable 的检查体系更深（44 条可执行检测器 vs 10 条描述性规则），但只管查不管修——输出检测报告后就结束了。AuraDesign 的 Polish 多了一个完整的修复闭环：脚本发现问题 → Agent 修复 → 重新验证 → 出中文报告。
+
+> 检查能力不如 impeccable，但多了一个修复闭环。这是有意的取舍——在 MVP 阶段先保证流程完整，再逐步加深检查深度。
+
+## 确定性脚本作为流程骨架
+
+AuraDesign 的 16 个 `.mjs` 脚本构成了主流程的骨架。它们不调用 LLM，不依赖 AI 推理，每次运行在相同输入下产生完全相同输出。
+
+这些脚本做三件事：流程控制（project-mode、learn-kernel、draw-init、handoff-init）、产物记录（record-design、record-asset）、质量验证（check-target、polish、screenshot、a11y、overflow、design-system）。每个脚本都有 `--self-test`，输出 JSON，在临时目录中验证自身逻辑。
+
+它们遵循三条设计原则：能用正则和文件系统解决的问题不用 LLM；脚本输出 JSON 方便 Agent 解析和决策；每个脚本自带 self-test 做回归验证。
+
+四个竞品中没有一个在"设计流程控制"这个维度上有类似的东西。impeccable 有 44 条检测规则，但它们作用于设计质量而非流程控制。baoyu-design 全链路依赖 LLM，没有确定性脚本。
+
+## 借鉴和明显不足
+
+从 baoyu-design 借鉴了最多：skill 分层架构（SKILL.md → system-prompt.md → references/ → built-in-skills/ → starter-components/）、HTML-first 设计产物、"设计产物与源码分离"的目录模式、starter components、HTTP 预览的工作方式。但在此基础上增加了 baoyu-design 没有的 Stage Gate、project-mode、确定性脚本体系和中文交付物。
+
+从 impeccable 借鉴了确定性检查理念和"先脚本后 LLM"的原则。从 ui-ux-pro-max 借鉴了行业知识映射的思路。从 open-design 借鉴了预建设计系统的概念。
+
+明显的短板同样清晰：检查深度不如 impeccable（10 条描述性反模式 vs 44 条可执行规则）、行业知识不如 ui-ux-pro-max（4 个模板 vs 161 条规则 + 搜索引擎）、导出格式不如 baoyu-design（Markdown vs PPTX/PDF/MP4）、平台生态不如 open-design（1 个 CLI vs 桌面应用 + 插件市场）。
+
+前两项（检查深度和行业知识）是中短期可以追赶的，后两项（导出格式和平台生态）则取决于定位选择。AuraDesign 的定位是轻量级项目内插件，不是平台。
+
+## 最后
+
+AuraDesign V0.1 的核心选择可以概括为三件事：用 project-mode 把 existing 和 greenfield 两条路分开；用 Stage Gate + 确定性脚本给 LLM 驱动的设计流程建立一个可验证的质量底线；用中文交付物降低国内团队使用 AI 辅助设计流程的门槛。
+
+这些选择在竞品坐标系里都有参照物，但组合方式是目前独有的。当前效果好的场景是旧项目重构和旧项目强相关的新页面，效果不好的场景是新项目新页面和弱相关的扩页——这也是下一步需要重点验证和补齐的方向。
