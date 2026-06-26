@@ -1,0 +1,133 @@
+---
+title: 'Astro 7 正式发布：从 Vite 8 到 Rust 化编译器，一次底层重构的全栈框架升级'
+publishDate: '2026-06-26 16:00:00'
+description: 'Astro 7 带来了 Vite 8 + Rolldown 的 Rust 级构建加速、Go→Rust 重写的组件编译器、Rust 原生 Markdown 引擎 Sätteri，以及稳定的路由缓存和 AI 友好的开发体验。本文逐特性拆解，分析这次升级为什么不是"加功能"而是"换引擎"。'
+tags:
+  - astro
+  - frontend
+  - rust
+  - tooling
+  - review
+language: 'CN'
+draft: false
+comment: false
+---
+
+2026 年 6 月 22 日，Astro 团队正式发布了 Astro 7。这次更新的标题党很容易写成"Astro 更快了"——但如果你只看性能数字，会错过真正重要的事情：**这次升级的实质，是 Astro 把构建链上几乎所有 JavaScript/Go 组件替换成了 Rust 实现。**
+
+这不是一次功能堆叠式的大版本。这是一次引擎更换。
+
+## 数字：15%–61% 的构建加速
+
+先看结果。在 MacBook Pro M4 Pro（48 GB RAM）上实测：
+
+| 站点 | 页面数 | 6.x | 7.0 | 提升 |
+|------|--------|-----|-----|------|
+| docs.astro.build | ~6,313 | 114.54s | 73.53s | **-36%** |
+| astro.build | ~308 | 62.70s | 24.24s | **-61%** |
+| biomejs.dev | ~6,488 | 176.39s | 149.90s | **-15%** |
+| developers.cloudflare.com | 8,431 | 386.89s | 261.94s | **-32%** |
+| tauri.app | 7,117 | 86.12s | 55.33s | **-36%** |
+| aspire.dev | 13,275 | 385.84s | 326.11s | **-15%** |
+
+astro.build 快了 61%，Cloudflare 文档站省了两分钟。对于内容型站点——这正是 Astro 的主战场——这些数字意味着**本地 dev 循环和 CI 构建的反馈时间都被大幅压缩。**
+
+但更有意思的是问"为什么"。
+
+## Vite 8 + Rolldown：干掉 esbuild 和 Rollup 同时
+
+Astro 7 直接跳到 Vite 8，而 Vite 8 的核心变化是用 **Rolldown** 同时替换了 esbuild 和 Rollup。
+
+这是一个值得停下来想想的决策。Vite 的传统架构是双引擎：esbuild 负责预打包依赖（快但不支持复杂转换），Rollup 负责生产构建（功能全但慢）。Vite 团队选择用 Rolldown 统一这两条路径——一个用 Rust 写的、兼容 Rollup 插件 API 的打包器。官方给出的速度对比是 **"比 Rollup 快 10–30 倍"**。
+
+对 Astro 用户来说，这个变化大部分是透明的。Vite 的 `esbuild` 和 `rollupOptions` 配置会自动转换，不需要手动改。但如果你的项目有自定义 Rollup 插件，需要注意兼容性——Rolldown 目前只覆盖了 Rollup 插件 API 的一个子集，文档里明确说了"大多数但不保证全部兼容"。
+
+## Rust 编译器：从 Go 到 Rust，从"宽容"到"严格"
+
+Astro 的 `.astro` 组件编译器在 7.0 中完全重写了——从 Go 换到了 Rust，底层用了 **oxc**（Oxc 的解析器）和 **Lightning CSS**（做 CSS 作用域隔离）。
+
+编译器的正确性通常只在它出错时才被注意到。但这次重写引入了一个重要的行为变化：**旧编译器会静默修正 HTML 语法错误（自动闭合标签、重排元素），新编译器不再这么做。** 它采用 JSX 风格的严格模式——未闭合的标签和未终结的属性直接报错，而不是默默帮你修。
+
+这个变化的方向是对的。一个构建工具不应该替作者"猜"意图。但这种严格性也可能在升级时产生摩擦——如果你的项目里有一些常年被旧编译器容忍的不规范模板语法，7.0 会直接拒绝构建。好在错误信息是明确的，修复通常只需要补一个闭合标签。
+
+还有一个容易被忽略的细节：**JSX 风格的空白处理。** 行内元素之间的换行不再产生可见空格（匹配 React 的行为）。如果你确实需要保留空格，需要用 `{' '}` 表达式显式标注。这一条改动的理由充分——让行为和前端最主流的 JSX 习惯保持一致——但要小心检查依赖空白间距的视觉布局。
+
+## Sätteri：Markdown 引擎的 Rust 化
+
+这是我个人认为 Astro 7 里最深远的改动。
+
+Astro 的内容处理管线——Markdown 解析、转译、HTML 生成——一直是 JavaScript 实现的 unified/remark/rehype 管线。7.0 引入了一个叫 **Sätteri** 的新引擎，基于 Rust 的 `pulldown-cmark` 和 Oxc，默认接管所有 Markdown 处理。
+
+看一下性能影响：docs.astro.build（六千多页的纯内容站）快了 36 秒，Cloudflare 文档站（八千多页）快了 125 秒。Markdown 越重的站点，这一项的增益越明显。
+
+Sätteri 内置了大量之前需要插件才能用的功能：GFM 表格、脚注、删除线、任务列表、智能标点、标题锚点、容器指令、数学公式、上下标、wiki 链接。所有这些通过一个 `features` 配置项控制开关，不需要装十个插件。
+
+如果项目依赖 remark/rehype 插件，Astro 保留了 `@astrojs/markdown-remark` 这个向后兼容选项。但官方态度很清楚：Sätteri 是未来，unified 管线是过渡期保留的替代路径。
+
+## Queued Rendering 稳定化
+
+这是一个看起来不显眼但实际性能收益扎实的特性。传统的 Astro 页面渲染是递归的——组件渲染中嵌套子组件，子组件再嵌套孙组件。Queued Rendering 把这个递归过程改成了队列：把子节点推到栈上，在一个单循环里渲染完。
+
+表达式稠密的页面性能提升 **~2.4 倍**。而且因为弹出就渲染，内存占用也更低。
+
+这个模式在 6.x 是实验性的，7.0 里变成了默认行为。对用户来说它是完全透明的——不需要改任何代码，自动生效。
+
+## `src/fetch.ts`：把路由控制权还给你
+
+Astro 7 引入了一个新的入口点 `src/fetch.ts`，暴露了一个标准的 `fetch` handler——和 Cloudflare Workers、Deno、Bun 的模式完全一致。
+
+这意味着什么？在 Astro 7 之前，如果你想在路由层加 auth、logging、请求转发，要么用中间件（受限于 Astro 的中间件模型），要么在页面组件里写（丑）。现在你可以写一个标准 fetch handler：
+
+- 在 actions 之前放 auth 检查
+- 在 middleware 之后、页面渲染之前插 logging
+- 把 `/api/*` 请求转发到外部后端
+- 直接接入 **Hono** 的中间件生态
+
+最后一个特别值得关注。Hono 是目前边缘计算领域最活跃的 Web 框架之一，它的中间件生态涵盖了 CORS、JWT 验证、限流、缓存等。Astro 7 的 fetch handler 和 Hono 兼容，意味着你可以把 Hono 中间件直接挂到 Astro 路由上。这不是"集成"，这是"兼容标准 API 之后自然生长出来的可能性"。
+
+## 路由缓存稳定化 + CDN 缓存
+
+6.x 里实验性的路由缓存，在 7.0 里稳定了。API 很简单：`Astro.cache.set()`，配置 `maxAge`、`swr`（stale-while-revalidate）、`tags`。`cache.invalidate()` 支持按 tag 或路径清除，适合 CMS webhook 触发。
+
+更值得注意的是一组新的 CDN 缓存 provider：
+
+| 适配器 | Provider |
+|--------|----------|
+| Netlify | `cacheNetlify()` |
+| Vercel | `cacheVercel()` |
+| Cloudflare | `cacheCloudflare()`（private beta） |
+
+这些 provider 的作用是把缓存指令推到 CDN 边缘网络——缓存命中时根本不触发服务端函数。对于部署在 Vercel/Netlify 上的 Astro 站点，这意味着可以做到接近静态站点的 TTFB，同时保持服务端渲染的动态能力。
+
+## AI 友好的三项改进
+
+Astro 7 包含了三个专门为 AI 编码场景设计的特性：
+
+**后台 dev server**：`astro dev --background` 把 dev server 作为后台进程启动，返回 PID 和 URL 后 detach。Astro 会自动检测 AI 编码 agent 并启用这个模式。配套的 `astro dev stop`、`astro dev status`、`astro dev logs` 都是幂等的——写脚本和 skill 时不需要自己管理进程状态。
+
+**JSON 日志**：支持 `astro dev --json` 或 `logHandlers.json()`，输出结构化日志。`compose()` API 可以同时输出人类可读的 console 日志和机器可读的 JSON，兼顾调试和生产日志聚合。
+
+**`/_astro/status` 健康检查端点**：dev server 内置了一个健康检查端点，AI agent 可以通过它判断服务是否就绪。
+
+这三项加起来，构成了一个对 AI agent 更友好的开发环境闭环：后台启动 → 健康检查确认就绪 → 结构化日志供解析 → 幂等命令管理生命周期。
+
+## 整体评价
+
+**Astro 7 不是"加功能"的版本，而是"换底层"的版本。** 构建工具链的三个核心组件——打包器（Rolldown）、编译器（oxc+Lightning CSS）、Markdown 引擎（Sätteri）——全部迁移到了 Rust。这是一个框架在性能上做出系统性承诺的信号：不是靠某个优化点，而是靠编译器基建的语言级重构。
+
+**对现有项目的升级成本取决于你用了多少自定义配置。** 如果你的项目是标准的内容站点，升级到 7.0 大概率只改版本号就能享受 30%+ 的构建加速。但以下两类项目需要额外注意：
+- 强依赖 remark/rehype 插件 → 需要决定是迁移到 Sätteri 插件 API 还是保留 unified 管线
+- 模板中有不规范的 HTML → 新编译器的严格模式会报错，需要修模板
+
+**我最关注的是 Sätteri 和 `src/fetch.ts`。** 前者是 Astro 核心用户价值的引擎升级——内容站点的构建速度直接影响写作-发布循环的反馈时间。后者打开了 Astro 从"内容框架"走向"全栈框架"的路由层。当你可以用标准 fetch handler 组合 Hono 中间件时，Astro 能做的事情边界明显扩大了。
+
+**AI 友好的改进方向正确，但目前仍是基础设施层面的铺垫。** 后台 dev server 和 JSON 日志本身不会让 AI agent 变得更聪明，但它们消除了 agent 和 Astro 交互时的常见摩擦——进程管理、日志解析、状态检测。这些是写 Astro 相关 Agent 的 Skill 时会依赖的基础能力。
+
+Astro 7 是一次典型的"成熟框架的重构升级"：外面看起来变化不大，但里面的发动机全换了。
+
+---
+
+**参考链接：**
+- [Astro 7 官方发布博客](https://astro.build/blog/astro-7/)
+- [Vite 8 + Rolldown](https://rolldown.rs/)
+- [oxc (Oxidation Compiler)](https://oxc.rs/)
