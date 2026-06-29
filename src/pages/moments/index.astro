@@ -1,0 +1,174 @@
+---
+import { getCollection } from 'astro:content'
+import { Button } from 'astro-pure/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+
+export const prerender = true
+
+const moments = (await getCollection('moments'))
+  .filter((moment) => !moment.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Shanghai'
+})
+
+const meta = {
+  description: '一些随手写下的短句、想法和生活切片。',
+  title: 'Moments'
+}
+---
+
+<PageLayout {meta}>
+  <Button title='Back' href='/' variant='back' />
+
+  <main class='moments-shell mt-6 lg:mt-10'>
+    <div id='content-header' class='animate moments-hero'>
+      <h1 class='mb-4 mt-3 text-3xl font-medium sm:text-4xl'>Moments</h1>
+      <p class='max-w-2xl text-balance text-muted-foreground'>
+        一些没有长成文章的句子，也值得有自己的时间。
+      </p>
+      <p class='moments-count'>
+        {moments.length} 条记录
+      </p>
+    </div>
+
+    <section id='content' class='animate moments-timeline' aria-label='说说时间线'>
+      {
+        moments.length === 0 ? (
+          <p class='empty'>暂时还没有说说。</p>
+        ) : (
+          <ol>
+            {moments.map((moment) => (
+              <li id={moment.id} class='moment-item'>
+                <a class='moment-date' href={`#${moment.id}`} aria-label={`打开 ${moment.id} 的锚点`}>
+                  <time datetime={moment.data.date.toISOString()}>
+                    {dateFormatter.format(moment.data.date)}
+                  </time>
+                </a>
+
+                <article class='moment-card'>
+                  <p>{moment.data.content}</p>
+                </article>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </section>
+  </main>
+</PageLayout>
+
+<style>
+  .moments-shell {
+    max-width: 52rem;
+  }
+
+  .moments-hero {
+    max-width: 42rem;
+  }
+
+  .moments-kicker {
+    margin: 0;
+    color: hsl(var(--primary) / 1);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .moments-count {
+    width: fit-content;
+    margin-top: 1.25rem;
+    border: 1px solid hsl(var(--border) / 1);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    color: hsl(var(--muted-foreground) / 1);
+    font-size: 0.875rem;
+  }
+
+  .moments-timeline {
+    margin-top: 3rem;
+  }
+
+  .moments-timeline ol {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+    margin: 0;
+    padding: 0 0 0 1.4rem;
+    list-style: none;
+  }
+
+  .moment-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(8rem, 10rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .moment-item::before {
+    position: absolute;
+    top: 0.45rem;
+    left: -1.28rem;
+    z-index: 1;
+    width: 0.7rem;
+    height: 0.7rem;
+    border: 2px solid hsl(var(--background) / 1);
+    border-radius: 999px;
+    background: hsl(var(--primary) / 1);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.32);
+    content: '';
+  }
+
+  .moment-date {
+    color: hsl(var(--muted-foreground) / 1);
+    font-size: 0.875rem;
+    line-height: 1.6;
+    text-decoration: none;
+  }
+
+  .moment-date:hover {
+    color: hsl(var(--primary) / 1);
+  }
+
+  .moment-card {
+    border: 1px solid hsl(var(--border) / 1);
+    border-radius: 0.5rem;
+    background: hsl(var(--card) / 0.72);
+    padding: 1rem 1.1rem;
+  }
+
+  .moment-card p {
+    margin: 0;
+    color: hsl(var(--foreground) / 1);
+    font-size: 1.05rem;
+    line-height: 1.85;
+  }
+
+  .empty {
+    color: hsl(var(--muted-foreground) / 1);
+  }
+
+  @media (max-width: 640px) {
+    .moments-timeline ol {
+      padding-left: 1.15rem;
+    }
+
+    .moment-item {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.45rem;
+    }
+
+    .moment-item::before {
+      left: -1.08rem;
+    }
+
+    .moment-card {
+      padding: 0.9rem;
+    }
+  }
+</style>

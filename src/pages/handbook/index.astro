@@ -1,7 +1,11 @@
 ---
+import type { CollectionEntry, CollectionKey } from 'astro:content'
+
 import { getBlogCollection, sortMDByDate } from 'astro-pure/server'
 import { Button, FormattedDate } from 'astro-pure/user'
 import PageLayout from '@/layouts/BaseLayout.astro'
+
+type Collections = CollectionEntry<CollectionKey>[]
 
 function groupCollectionsByCategory<T extends CollectionKey>(
   collections: Collections
