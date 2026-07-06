@@ -119,7 +119,7 @@ const typographyConfig = {
         '0 0 0 1px hsl(var(--primary-foreground) / 1), 0 3px hsl(var(--primary-foreground) / 1)'
     },
     strong: {
-      'font-weight': '600',
+      'font-weight': '500',
       color: fg
     },
     a: {

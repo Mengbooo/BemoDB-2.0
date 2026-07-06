@@ -153,7 +153,7 @@ export const integ: IntegrationUserConfig = {
   },
   // Comment system
   waline: {
-    enable: true,
+    enable: false,
     // Server service link
     server: 'https://waline-bolaxious.vercel.app/',
     // Refer https://waline.js.org/en/guide/features/emoji.html
