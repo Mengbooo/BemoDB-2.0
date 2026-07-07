@@ -62,7 +62,7 @@ const blog = defineCollection({
 // Define moments collection
 const moments = defineCollection({
   // Keep short-form updates in one structured file instead of scattered Markdown files.
-  loader: file('./src/data/moments.yaml', {
+  loader: file('./src/pages/moments/moments.yaml', {
     parser: (text) => {
       const moments = yaml.load(text) as unknown
       if (!Array.isArray(moments)) return []
