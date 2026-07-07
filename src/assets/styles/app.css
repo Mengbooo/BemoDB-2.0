@@ -80,3 +80,8 @@ a {
   color: hsl(var(--primary-foreground) / 1);
   background-color: hsl(var(--primary) / 1);
 }
+
+/* Hero image shadow — disabled */
+#blurImage {
+  display: none;
+}
