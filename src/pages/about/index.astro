@@ -6,6 +6,7 @@ import ToolSection from '@/components/about/ToolSection.astro'
 import Signature from 'preset/components/signature/Signature.astro'
 
 const headings = [
+  { depth: 2, slug: 'projects', text: 'Projects' },
   { depth: 2, slug: 'tools', text: 'Tools' },
   { depth: 2, slug: 'social-networks', text: 'Social Networks' },
   { depth: 2, slug: 'about-blog', text: 'About Blog' }
@@ -33,6 +34,34 @@ const headings = [
     <li>Ex dicat impedit mel, at eum oratio possit voluptatum.</li>
     <li>Impetus fuisset ullamcorper pri cu, his posse iisque ad, aliquam honestatis usu id.</li>
   </ul> -->
+
+  {/* projects */}
+  <h2 id='projects'>Projects</h2>
+  <p>一些我做过的小项目，点击可跳转：</p>
+  <ToolSection
+    class='mb-5'
+    title='Labs'
+    tools={[
+      {
+        name: 'Whistle Daily',
+        description: '个人定制日报',
+        href: 'https://daily.bolaxious.cn/',
+        icon: import('@/assets/tools/projects/num-1.svg?raw')
+      },
+      {
+        name: 'BemoLens',
+        description: '多证据 AI 图片检测',
+        href: 'https://bemolens.vercel.app/',
+        icon: import('@/assets/tools/projects/num-2.svg?raw')
+      },
+      {
+        name: 'Bemo Bio',
+        description: '个人主页 / Bio',
+        href: 'https://bemo-bio.bolaxious.cn/',
+        icon: import('@/assets/tools/projects/num-3.svg?raw')
+      }
+    ]}
+  />
 
   {/* tools */}
   <h2 id='tools'>Tools</h2>
