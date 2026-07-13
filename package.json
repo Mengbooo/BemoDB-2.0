@@ -2,7 +2,9 @@
   "name": "astro-theme-pure",
   "type": "module",
   "version": "4.0.8",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "astro dev",
     "dev:check": "astro check --watch & astro dev",
@@ -27,7 +29,9 @@
     "astro": "^5.12.0",
     "astro-pure": "workspace:*",
     "katex": "^0.16.22",
+    "playwright": "^1.61.1",
     "rehype-katex": "^7.0.1",
+    "rehype-mermaid": "^3.0.0",
     "remark-math": "^6.0.0",
     "sharp": "^0.34.3",
     "typescript": "^5.8.3"

@@ -1,0 +1,125 @@
+---
+title: HCCW*006 ｜ Hooks 与可扩展性
+publishDate: 2026-07-24 10:00:00
+description: '不改源码就能定制 Agent 行为：Hook 事件体系、四种类型与执行引擎'
+tags:
+  - HCCW
+  - agent
+  - engineering
+language: 'CN'
+draft: false
+comment: false
+---
+
+前几篇讨论的都是 Claude Code 核心系统本身——循环、上下文、工具、安全。这些是写死在代码里的。但每个团队的工作方式不同。不可能把所有需求都写进核心代码。
+
+所以 Claude Code 在 Agent 生命周期的**关键节点上开了扩展点**，让团队可以不改源码就插入自定义逻辑。这个机制就是 Hook 系统。
+
+## 设计理念：事件驱动、配置声明、不侵入核心
+
+Hook 的核心思路借鉴了 Git Hooks：在特定生命周期节点触发事件，外部代码注册监听器并在事件发生时执行自定义逻辑。Claude Code 面对的挑战更复杂——不只是"跑个脚本、通过或阻止"，而是权限决策、异步长任务、多 Agent 协调。
+
+```mermaid
+graph LR
+    subgraph Agent 生命周期
+        Start[SessionStart] --> Prompt[UserPromptSubmit]
+        Prompt --> Pre[PreToolUse]
+        Pre --> Post[PostToolUse]
+        Post --> Stop[Stop]
+        Stop --> End[SessionEnd]
+    end
+    subgraph Hook 系统
+        Config[settings.json] --> Match[Matcher 匹配]
+        Match --> Exec[执行引擎]
+        Exec --> Result[决策聚合]
+    end
+    Agent 生命周期 -.->|事件触发| Hook 系统
+```
+
+27 种 Hook 事件覆盖 Agent 完整生命周期：
+
+| 类别 | 事件 | 触发时机 |
+|------|------|---------|
+| 工具生命周期 | PreToolUse / PostToolUse / PostToolUseFailure | 工具执行前 / 成功后 / 失败后 |
+| 权限系统 | PermissionRequest / PermissionDenied | 权限判定时 / 分类器拒绝时 |
+| 会话生命周期 | SessionStart / SessionEnd / UserPromptSubmit | 会话开始/结束/用户输入 |
+| 模型响应 | Stop / StopFailure | 模型停止 / API 调用失败 |
+| Agent 协调 | SubagentStart / SubagentStop / TeammateIdle | 子 Agent 启停 |
+| 压缩 | PreCompact / PostCompact | 上下文压缩前后 |
+| 环境变化 | FileChanged / CwdChanged / ConfigChange | 文件/目录/配置变更 |
+
+## Hook 的四种类型：为什么不用一种统一所有
+
+| 类型 | 执行方式 | 适用场景 | 延迟 | 需要模型？ |
+|------|---------|---------|------|-----------|
+| **Command** | fork shell 子进程，stdin/stdout JSON | 日志、lint、CI 触发 | 低 | 否 |
+| **Prompt** | 单轮 LLM 调用 | 语义安全检查、代码审查 | 中（2-10s） | 是 |
+| **Agent** | 完整 Agent 循环，可调用工具 | 复杂验证（跑测试+类型检查） | 高 | 是 |
+| **HTTP** | POST 到外部端点 | 企业合规、审批 webhook | 取决于网络 | 取决于服务 |
+
+> 四类 Hook 的存在不是因为"多就是好"，而是因为它们覆盖了从"不需要模型的简单检查"到"需要完整 Agent 推理的复杂验证"全范围。
+
+## 执行引擎：六个阶段与快路径优化
+
+```mermaid
+flowchart TD
+    Event[事件触发] --> Trust[1. 信任检查<br/>未信任工作区 ⇒ 禁用项目 Hook]
+    Trust --> Match[2. Matcher 匹配<br/>事件类型 + 内容匹配]
+    Match --> Dedup[3. 去重<br/>同配置不重复触发]
+    Dedup --> Parallel[4. 并行执行<br/>所有匹配 Hook 并发]
+    Parallel --> Parse[5. 输出解析<br/>stdout JSON ⇒ continue / decision]
+    Parse --> Aggregate[6. 结果聚合<br/>任一 deny ⇒ 阻止]
+```
+
+**快路径优化**：当所有匹配 Hook 都是 callback/function 类型时，跳过 JSON 序列化和进度事件。测试中延迟降低约 **70%**。
+
+| 普通路径 | 快路径 |
+|---------|--------|
+| JSON 序列化 → 事件发射 → 进程通信 → 反序列化 → 执行 | 直接函数调用 → 处理返回值 |
+| Command / HTTP / Prompt / Agent Hook | Callback / Function（SDK 内部） |
+
+**聚合规则**：deny 决策优先于 allow——多个 Hook 中只要有一个返回阻止，操作就被阻止。和权限规则中 deny 优先的逻辑一致。
+
+## 实际模式
+
+| 模式 | Hook 类型 | 事件 | 效果 |
+|------|----------|------|------|
+| git push 前 lint | Command | PreToolUse（Bash） | 匹配 `git push`，跑 lint，失败则阻止 |
+| 编辑后自动格式化 | Command | PostToolUse（Write/Edit） | 自动跑 prettier |
+| 联网操作审计 | HTTP | PostToolUse（WebFetch/WebSearch） | POST URL 到审计服务 |
+| 企业审批 | HTTP | PermissionRequest | 所有高危命令发审批流 |
+| 退出前检查 | Command | Stop | 检查未提交改动并提醒 |
+
+## 信任模型：为什么工作区信任是第一道防线
+
+**不是所有的 Hook 都值得信任。**如果用户 clone 了恶意仓库，仓库的 `.claude/settings.json` 里包含窃取 SSH key 的 PostToolUse Hook，系统必须在 Hook 执行前阻止它。
+
+```mermaid
+graph TD
+    Startup[首次启动] --> Dialog{信任此工作区?}
+    Dialog -->|信任| Enable[启用项目级 Hook]
+    Dialog -->|不信任| Disable[禁用项目级 Hook<br/>仅用户级和托管级生效]
+```
+
+> 信任决策按工作区目录独立。信任 `/home/work/trusted-project` 不影响 `/home/work/random-clone` 的状态。
+
+这和 **npm postinstall 脚本攻击**有本质区别：npm 在执行 `npm install` 时自动运行 postinstall，无论你是否"信任"这个包。Claude Code 把信任决策前置：先确认信任，再加载配置。
+
+## 和 Git Hooks、Webpack Plugin、VS Code Extension 的对比
+
+| 系统 | 触发时机 | 通信方式 | 可版本控制 | LLM 集成 |
+|------|---------|---------|-----------|---------|
+| Git Hooks | git 操作前后 | 文件系统 | 否（.git/hooks/ 不跟踪） | 否 |
+| Webpack Plugin | 构建阶段（tapable） | 同步/异步函数调用 | 是（配置声明） | 否 |
+| VS Code Extension | 持续运行 | API 调用 | 是（市场分发） | 否 |
+| **Claude Code Hook** | Agent 生命周期 27 个节点 | JSON stdin/stdout + HTTP | 是（settings.json） | **是**（Prompt / Agent 类型） |
+
+Claude Code Hook 的独特之处：Prompt 和 Agent 类型可以把 **LLM 作为一个判断组件**嵌入流程——在 Git Hooks 和 Webpack Plugin 里做不到的事。
+
+## 小结
+
+Hook 系统的设计可以用三个词概括：
+
+- **暴露而非预设**。不是预设所有可能的团队需求，而是把 Agent 生命周期的关键决策点暴露为事件。
+- **声明而非编码**。四种类型覆盖从轻到重的全范围。快路径让轻量 Hook 不被序列化开销拖累。信任模型让项目级 Hook 不被恶意仓库利用。
+- **决策辅助而非执行路径**。Hook 返回判断而非执行副作用——是"对已有流程的介入"，不是"开辟新流程"。
