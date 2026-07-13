@@ -19,22 +19,20 @@ comment: false
 
 Hook 的核心思路借鉴了 Git Hooks：在特定生命周期节点触发事件，外部代码注册监听器并在事件发生时执行自定义逻辑。Claude Code 面对的挑战更复杂——不只是"跑个脚本、通过或阻止"，而是权限决策、异步长任务、多 Agent 协调。
 
-```mermaid
-graph LR
-    subgraph Agent 生命周期
-        Start[SessionStart] --> Prompt[UserPromptSubmit]
-        Prompt --> Pre[PreToolUse]
-        Pre --> Post[PostToolUse]
-        Post --> Stop[Stop]
-        Stop --> End[SessionEnd]
-    end
-    subgraph Hook 系统
-        Config[settings.json] --> Match[Matcher 匹配]
-        Match --> Exec[执行引擎]
-        Exec --> Result[决策聚合]
-    end
-    Agent 生命周期 -.->|事件触发| Hook 系统
-```
+<div class="text-diagram">
+
+**subgraph Agent 生命周期**
+  Start（SessionStart）
+  Prompt  →  Pre
+  Pre  →  Post
+  Post  →  Stop
+  Stop  →  End
+**subgraph Hook 系统**
+  Config（settings.json）
+  Match  →  Exec
+  Exec  →  Result
+
+</div>
 
 27 种 Hook 事件覆盖 Agent 完整生命周期：
 
@@ -61,15 +59,16 @@ graph LR
 
 ## 执行引擎：六个阶段与快路径优化
 
-```mermaid
-flowchart TD
-    Event[事件触发] --> Trust[1. 信任检查<br/>未信任工作区 ⇒ 禁用项目 Hook]
-    Trust --> Match[2. Matcher 匹配<br/>事件类型 + 内容匹配]
-    Match --> Dedup[3. 去重<br/>同配置不重复触发]
-    Dedup --> Parallel[4. 并行执行<br/>所有匹配 Hook 并发]
-    Parallel --> Parse[5. 输出解析<br/>stdout JSON ⇒ continue / decision]
-    Parse --> Aggregate[6. 结果聚合<br/>任一 deny ⇒ 阻止]
-```
+<div class="text-diagram">
+
+Event（事件触发）
+Trust  →  Match
+Match  →  Dedup
+Dedup  →  Parallel
+Parallel  →  Parse
+Parse  →  Aggregate
+
+</div>
 
 **快路径优化**：当所有匹配 Hook 都是 callback/function 类型时，跳过 JSON 序列化和进度事件。测试中延迟降低约 **70%**。
 
@@ -94,12 +93,13 @@ flowchart TD
 
 **不是所有的 Hook 都值得信任。**如果用户 clone 了恶意仓库，仓库的 `.claude/settings.json` 里包含窃取 SSH key 的 PostToolUse Hook，系统必须在 Hook 执行前阻止它。
 
-```mermaid
-graph TD
-    Startup[首次启动] --> Dialog{信任此工作区?}
-    Dialog -->|信任| Enable[启用项目级 Hook]
-    Dialog -->|不信任| Disable[禁用项目级 Hook<br/>仅用户级和托管级生效]
-```
+<div class="text-diagram">
+
+Startup（首次启动）
+Dialog  →  信任
+Dialog  →  不信任
+
+</div>
 
 > 信任决策按工作区目录独立。信任 `/home/work/trusted-project` 不影响 `/home/work/random-clone` 的状态。
 

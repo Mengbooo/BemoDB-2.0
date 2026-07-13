@@ -29,17 +29,22 @@ comment: false
 
 ### 四种记忆类型：封闭分类法
 
-```mermaid
-graph TB
-    subgraph 个人记忆["个人记忆（始终私有）"]
-        User["user: 用户画像<br/>角色 / 偏好 / 知识背景"]
-        Feedback["feedback: 行为反馈<br/>纠正 + 认可<br/>结构：规则 + Why + How to apply"]
-    end
-    subgraph 共享记忆["共享记忆"]
-        Project["project: 项目记忆<br/>进展 / 决策 / 截止日期<br/>相对日期→绝对日期"]
-        Reference["reference: 引用记忆<br/>外部系统指针"]
-    end
-```
+<div class="text-diagram">
+
+**个人记忆（始终私有）**
+  User（user: 用户画像
+  角色 / 偏好 / 知识背景）
+  Feedback（feedback: 行为反馈
+  纠正 + 认可
+  结构：规则 + Why + How to apply）
+**共享记忆**
+  Project（project: 项目记忆
+  进展 / 决策 / 截止日期
+  相对日期→绝对日期）
+  Reference（reference: 引用记忆
+  外部系统指针）
+
+</div>
 
 | 类型 | 记什么 | 示例 | 触发时机 |
 |------|--------|------|---------|
@@ -78,13 +83,15 @@ feedback 和 project 类型有**结构化要求**：
 
 ## 召回：语义而非关键词
 
-```mermaid
-graph LR
-    Task[当前任务上下文] --> Model[模型评估]
-    Memory[记忆目录<br/>name + description] --> Model
-    Model -->|语义相关| Inject[注入为 system-reminder]
-    Model -->|不相关| Skip[跳过]
-```
+<div class="text-diagram">
+
+Task（当前任务上下文）
+Memory（记忆目录
+  name + description）
+Model  →  语义相关
+Model  →  不相关
+
+</div>
 
 与 RAG 向量检索的对比：
 
@@ -101,15 +108,16 @@ graph LR
 
 技能解决的是重复 AI 工作流的固化。把经过验证的提示词封装为 Markdown 文件：
 
-```mermaid
-graph LR
-    User[用户输入] -->|"帮我提交代码"| Auto[模型自动匹配]
-    User -->|"/commit"| Manual[斜杠命令手动触发]
-    Auto --> Skill[commit 技能<br/>SKILL.md]
-    Manual --> Skill
-    Skill --> Load[懒加载正文]
-    Load --> Execute[执行流程]
-```
+<div class="text-diagram">
+
+User（用户输入）
+User  —"/→  commit
+Auto  →  Skill
+Manual  →  Skill
+Skill  →  Load
+Load  →  Execute
+
+</div>
 
 **双重调用路径**是技能和传统 slash command 的关键区别：
 
@@ -132,24 +140,22 @@ graph LR
 
 ## 记忆、技能、CLAUDE.md 三者的完整分工
 
-```mermaid
-graph TB
-    subgraph 静态规则["CLAUDE.md"]
-        Team[团队共享 · 签入 git]
-        What[回答：这个项目怎么做]
-    end
-    subgraph 动态学习["记忆"]
-        Personal[个人私有 · 本地存储]
-        Who[回答：和这个人协作注意什么]
-    end
-    subgraph 可复用能力["技能"]
-        Workflow[可复用工作流]
-        How[回答：这个事该怎么做]
-    end
-    Static --> Agent[Agent 行为]
-    Dynamic --> Agent
-    Workflow --> Agent
-```
+<div class="text-diagram">
+
+**CLAUDE.md**
+  Team（团队共享 · 签入 git）
+  What（回答：这个项目怎么做）
+**记忆**
+  Personal（个人私有 · 本地存储）
+  Who（回答：和这个人协作注意什么）
+**技能**
+  Workflow（可复用工作流）
+  How（回答：这个事该怎么做）
+Static  →  Agent
+Dynamic  →  Agent
+Workflow  →  Agent
+
+</div>
 
 | | CLAUDE.md | 记忆 | 技能 |
 |------|-----------|------|------|

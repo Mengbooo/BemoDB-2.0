@@ -4,7 +4,6 @@ import AstroPureIntegration from 'astro-pure'
 import { defineConfig } from 'astro/config'
 import rehypeKatex from 'rehype-katex'
 import remarkMath from 'remark-math'
-import remarkD2 from './src/plugins/remark-d2.ts'
 
 // Others
 // import { visualizer } from 'rollup-plugin-visualizer'
@@ -73,7 +72,7 @@ export default defineConfig({
   },
   // Markdown Options
   markdown: {
-    remarkPlugins: [remarkMath, remarkD2],
+    remarkPlugins: [remarkMath],
     rehypePlugins: [
       [rehypeKatex, {}],
       rehypeHeadingIds,

@@ -33,17 +33,20 @@ Claude Code 每次 API 调用要发送的内容很庞大。光是系统提示词
 | 环境信息 | git 状态、CLAUDE.md、日期 | 会话级稳定 | `messages[0]` | 放在消息中，不破坏系统缓存 |
 | 消息历史 | 对话记录、工具结果 | 每轮增长 | `messages[1:]` | 分级压缩管理 |
 
-```mermaid
-graph TB
-    subgraph 系统提示词
-        Static["__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__ 之前<br/>核心指令 + 工具描述 + 安全规则<br/>scope: 'global' 缓存"]
-        Dynamic["边界之后<br/>MCP 配置 + 输出风格 + 语言偏好<br/>因用户/会话而异"]
-    end
-    subgraph 消息数组
-        M0["messages[0]: CLAUDE.md + 日期<br/>system-reminder 包裹"]
-        M1["messages[1:]: 对话历史 + 工具结果<br/>持续增长，压缩管理"]
-    end
-```
+<div class="text-diagram">
+
+**subgraph 系统提示词**
+  Static（__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__ 之前
+  核心指令 + 工具描述 + 安全规则
+  scope: 'global' 缓存）
+  Dynamic（边界之后
+  MCP 配置 + 输出风格 + 语言偏好
+  因用户/会话而异）
+**subgraph 消息数组**
+  M0（messages0）
+  M1（messages1:）
+
+</div>
 
 系统提示词内部有一条哨兵字符串 `__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__`，把静态核心指令和动态配置切开。边界之前的内容全球数百万用户共享同一份缓存——没有这个边界，整个提示词都只能做 org 级别缓存，效率急剧下降。
 
@@ -53,23 +56,23 @@ graph TB
 
 压缩流水线有五个级别，从轻到重排列。每级比前一级释放更多空间，也丢失更多细节。关键逻辑：**每一级尝试之后，系统判断释放的空间是否足够。如果够了，跳过更重的级别。**
 
-```mermaid
-flowchart TD
-    Input[消息列表] --> L1[Level 1: Tool Result Budget<br/>大结果持久化到磁盘<br/>上下文只保留预览]
-    L1 --> Check1{空间够了?}
-    Check1 -->|是| Done[发送 API 请求]
-    Check1 -->|否| L2[Level 2: History Snip<br/>替换旧工具输出为占位符]
-    L2 --> Check2{空间够了?}
-    Check2 -->|是| Done
-    Check2 -->|否| L3[Level 3: Microcompact<br/>缓存热: cache_edits<br/>缓存冷: 直接替换]
-    L3 --> Check3{空间够了?}
-    Check3 -->|是| Done
-    Check3 -->|否| L4[Level 4: Context Collapse<br/>读时投影 · 可逆折叠]
-    L4 --> Check4{空间够了?}
-    Check4 -->|是| Done
-    Check4 -->|否| L5[Level 5: Autocompact<br/>fork 子 Agent 生成摘要<br/>不可逆]
+<div class="text-diagram">
 
-```
+Input（消息列表）
+L1  →  Check1
+Check1  →  是
+Check1  →  否
+L2  →  Check2
+Check2  →  是
+Check2  →  否
+L3  →  Check3
+Check3  →  是
+Check3  →  否
+L4  →  Check4
+Check4  →  是
+Check4  →  否
+
+</div>
 
 ### Level 1: Tool Result Budget
 

@@ -1,4 +1,7 @@
 ---
+// Pre-render all blog posts at build time — avoids Kroki API calls on every request
+export const prerender = true
+
 import type { MarkdownHeading } from 'astro'
 import type { CollectionEntry } from 'astro:content'
 

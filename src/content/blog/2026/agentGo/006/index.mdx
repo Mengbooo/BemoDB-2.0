@@ -47,13 +47,14 @@ async function* query(
 
 **Generator** 的 `yield` 和 `return` 分别对应流式事件和最终结果，天生就是为此设计的。更关键的是，`generator.return()` 可以级联清理整个调用链：
 
-```mermaid
-graph LR
-    User[用户按 Ctrl+C] --> REPL[REPL 层]
-    REPL -->|generator.return| QE[QueryEngine]
-    QE -->|generator.return| Query[query()]
-    Query -->|abort| API[API 请求]
-```
+<div class="text-diagram">
+
+User（用户按 Ctrl+C）
+REPL  →  generator
+QE  →  generator
+Query  →  abort
+
+</div>
 
 不需要手动在每一层接线——清理信号沿 generator 链自动传播。
 
@@ -61,26 +62,24 @@ graph LR
 
 Agent Loop 拆成了两层。就像操作系统把进程调度和单次 CPU 时间片执行拆开一样。
 
-```mermaid
-graph TB
-    subgraph 会话层["QueryEngine —— 会话生命周期"]
-        direction LR
-        Setup[设置<br/>上下文 + 模型] --> Orphan[孤儿权限]
-        Orphan --> Input[输入处理<br/>命令 / 附件]
-        Input --> Check[本地命令?]
-        Check -->|是| Skip[跳过 API]
-        Check -->|否| Loop
-    end
-    subgraph 执行层["query() —— 单次循环"]
-        direction LR
-        Loop[压缩检查] --> API[API 调用]
-        API --> Stream[流式解析]
-        Stream --> Tools[工具执行]
-        Tools -->|继续| Loop
-        Tools -->|完成| Done[返回 Terminal]
-    end
-    会话层 --> 执行层
-```
+<div class="text-diagram">
+
+**QueryEngine —— 会话生命周期**
+  Setup（设置
+  上下文 + 模型）
+  Orphan  →  Input
+  Input  →  Check
+  Check  →  是
+  Check  →  否
+**query() —— 单次循环**
+  Loop（压缩检查）
+  API  →  Stream
+  Stream  →  Tools
+  Tools  →  继续
+  Tools  →  完成
+会话层  →  执行层
+
+</div>
 
 **QueryEngine**（外层）管理整段对话的生命周期。它的 `submitMessage()` 驱动一次完整的用户交互，包含八个阶段。**query()**（内层）管理单次循环迭代——压缩、调 API、解析流、执行工具、拼回结果。
 
@@ -127,18 +126,17 @@ async function* queryLoop(params: QueryParams) {
 
 Claude Code 利用了两个事实来打破串行瓶颈：模型生成是逐 token 流出的，工具调用 block 在流中完成解析的时刻远早于整个响应完成。于是 StreamingToolExecutor 不等整个响应结束就开始执行：
 
-```mermaid
-graph LR
-    subgraph 串行执行
-        S1[API 响应] --> S2[工具1] --> S3[工具2] --> S4[工具3]
-    end
-    subgraph 流式并行
-        P1["API 响应（流式）"] --> P1a["tool_use_1 完成 → 立即执行"]
-        P1 --> P1b["...继续生成..."]
-        P1 --> P1c["tool_use_2 完成 → 立即执行"]
-        P1 --> P1d["tool_use_3 完成 → 立即执行"]
-    end
-```
+<div class="text-diagram">
+
+**subgraph 串行执行**
+  S1（API 响应）
+**subgraph 流式并行**
+  P1（API 响应（流式））
+  P1  →  P1b
+  P1  →  P1c
+  P1  →  P1d
+
+</div>
 
 | 执行模式 | 总时长 | 工具延迟感知 |
 |---------|--------|------------|
@@ -161,18 +159,18 @@ graph LR
 | `stop_hook_blocking` | Stop Hook 阻止停止 | 继续循环 | 零 API |
 | `token_budget_continuation` | SDK 模式预算耗尽 | 注入续写指令 | 零 API |
 
-```mermaid
-flowchart TD
-    PTL[PTL 错误] --> Phase1[Phase 1: Context Collapse 排水]
-    Phase1 -->|释放了 Token| Retry1[重试 API]
-    Phase1 -->|不够| Phase2[Phase 2: 全量 Autocompact]
-    Phase2 -->|成功| Retry2[重试 API]
-    Phase2 -->|失败| Fail[yield 错误]
+<div class="text-diagram">
 
-    MOT[max_output_tokens] -->|可升级| Escalate[升级到 64K 重试]
-    MOT -->|不可升级| Inject[注入续写提示<br/>最多 3 次]
-    Inject -->|3 次后仍失败| Fail2[yield 错误]
-```
+PTL（PTL 错误）
+Phase1  →  释放了
+Phase1  →  不够
+Phase2  →  成功
+Phase2  →  失败
+MOT（max_output_tokens）
+MOT  →  不可升级
+Inject  →  3
+
+</div>
 
 关键不是有七个继续点，而是每种故障有**对应的恢复策略**——不是所有错误都走同一套重试路径。
 

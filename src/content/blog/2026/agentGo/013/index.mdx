@@ -21,34 +21,31 @@ comment: false
 
 Plan 模式的设计理念是：对于复杂任务，让模型先探索、再规划、用户审批后才动手。它通过**权限降级**强制模型进入"只读探索加输出计划"的工作模式。
 
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant M as 模型
-    participant S as 状态机
-    participant F as 计划文件
+<div class="text-diagram">
 
-    U->>M: "重构认证系统"
-    M->>S: 调用 EnterPlanMode
-    S->>S: 记住 prePlanMode（如 default）
-    S->>S: prepareContextForPlanMode()
-    S-->>M: 已进入 plan 模式
+用户（U）
+模型（M）
+状态机（S）
+计划文件（F）
+U  →  M
+M  →  S
+S  →  S
+S  →  S
+S  →  M
+[Note over M: 系统注入五阶段工作流指令]
+M  →  M
+M  →  M
+M  →  M
+M  →  F
+M  →  S
+S  →  U
+U  →  S
+S  →  S
+S  →  M
+[Note over M: 已退出 plan 模式，可以开始实施]
+M  →  M
 
-    Note over M: 系统注入五阶段工作流指令
-
-    M->>M: Phase 1: Explore Agent 探索代码
-    M->>M: Phase 2: Plan Agent 设计方案
-    M->>M: Phase 3: 审阅并向用户提问
-    M->>F: Phase 4: 写计划到文件
-    M->>S: Phase 5: 调用 ExitPlanMode
-
-    S->>U: 弹出审批对话框
-    U->>S: 批准（可编辑后批准）
-    S->>S: 恢复 prePlanMode
-    S-->>M: 返回完整计划文本
-    Note over M: 已退出 plan 模式，可以开始实施
-    M->>M: 按计划编辑文件
-```
+</div>
 
 整个流程的关键在于**状态转换的对称性**：进入时记住原模式（`prePlanMode`），退出时精确恢复。这保证了 Plan 模式是一个可嵌套的插入层——无论你原来是 default、auto 还是 bypassPermissions 模式，Plan 模式结束后都能无缝回到之前的状态。
 

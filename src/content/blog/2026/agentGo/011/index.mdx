@@ -17,22 +17,20 @@ comment: false
 
 ## 三种模式总览
 
-```mermaid
-graph TB
-    subgraph 子Agent["模式一：子 Agent（最常用）"]
-        P1[父 Agent] -->|fork 自包含任务| C1[子 Agent]
-        C1 -->|返回结果| P1
-    end
-    subgraph 协调器["模式二：协调器"]
-        CO[协调器<br/>只分配 · 不执行] --> W1[Worker 1]
-        CO --> W2[Worker 2]
-        CO --> W3[Worker 3]
-    end
-    subgraph Swarm["模式三：Swarm 团队"]
-        T1[Agent A] <-->|信箱通信| T2[Agent B]
-        T2 <-->|信箱通信| T3[Agent C]
-    end
-```
+<div class="text-diagram">
+
+**模式一：子 Agent（最常用）**
+  P1（父 Agent）
+  C1  →  返回结果
+**模式二：协调器**
+  CO（协调器
+  只分配 · 不执行）
+  CO  →  W2
+  CO  →  W3
+**模式三：Swarm 团队**
+  T1（Agent A）
+
+</div>
 
 | 模式 | 通信方式 | 中心 | 适用场景 |
 |------|---------|------|---------|
@@ -56,14 +54,15 @@ graph TB
 
 ### 工具过滤的四层管道
 
-```mermaid
-flowchart LR
-    Parent[父工具集] --> L1[Layer 1: 移除元工具<br/>AgentTool 自身不可调用]
-    L1 --> L2[Layer 2: 类型限制<br/>Explore=只读 / General=完整]
-    L2 --> L3[Layer 3: 异步白名单<br/>全局禁止列表]
-    L3 --> L4[Layer 4: Agent 级禁止<br/>用户显式声明黑名单]
-    L4 --> Output[子 Agent 最终工具集<br/>⊆ 父工具集]
-```
+<div class="text-diagram">
+
+Parent（父工具集）
+L1  →  L2
+L2  →  L3
+L3  →  L4
+L4  →  Output
+
+</div>
 
 每层过滤都是收窄的——**子 Agent 的工具集永远小于等于父 Agent**。不会出现子 Agent 获得父 Agent 都没有的能力。
 
@@ -79,13 +78,14 @@ flowchart LR
 
 > 限制"不准下厨房"的原因是：防止协调器在 worker 返回结果前基于过时信息做判断。
 
-```mermaid
-flowchart LR
-    Study[研究阶段<br/>摸清问题] --> Synthesize[综合阶段<br/>确定方案和分工]
-    Synthesize --> Execute[实施阶段<br/>worker 分头执行]
-    Execute --> Verify[验证阶段<br/>结果集成检查]
-    Verify -.->|发现问题| Study
-```
+<div class="text-diagram">
+
+Study（研究阶段
+  摸清问题）
+Synthesize  →  Execute
+Execute  →  Verify
+
+</div>
 
 四个阶段之间，协调器根据上一阶段的输出调整下一阶段的分配。关键：协调器**不会在阶段进行中自己跳进去干活**。
 

@@ -85,3 +85,21 @@ a {
 #blurImage {
   display: none;
 }
+
+.text-diagram {
+  margin: 1.5rem 0;
+  padding: 1rem 1.5rem;
+  border-left: 3px solid #999;
+  background: #f8f8f8;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+[data-theme="dark"] .text-diagram,
+.dark .text-diagram {
+  background: #1a1a2e;
+  border-left-color: #666;
+}
