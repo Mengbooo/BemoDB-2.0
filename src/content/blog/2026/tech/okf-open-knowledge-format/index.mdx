@@ -1,0 +1,721 @@
+---
+title: 'OKF：把研究资料写成 Agent 也能读的知识包'
+publishDate: '2026-07-20 11:30:00'
+description: '解读 Google Knowledge Catalog 中的 Open Knowledge Format，以及它如何服务个人研究'
+tags:
+  - ai
+  - agent
+  - engineering
+language: 'CN'
+draft: false
+comment: false
+---
+
+[GoogleCloudPlatform/knowledge-catalog](https://github.com/GoogleCloudPlatform/knowledge-catalog) 是 Google Cloud 放出的一组工具、样例与格式规范。仓库顶层最值得单独拎出来看的部分，是 `okf/`：Open Knowledge Format。
+
+Knowledge Catalog（前身是 Dataplex 的能力方向）定位是 AI 驱动的数据目录与元数据管理平台，目标是把结构化、非结构化数据组织成动态知识图，给 AI Agent 提供语义和业务上下文。OKF 则是这个方向里被明确抽出来、做成开放格式的那一层：用带 YAML frontmatter 的 Markdown 目录树，表示可被人和 Agent 共同读写的知识。
+
+这篇文章先讲 OKF 解决什么问题、规范长什么样，再落到个人研究场景：当你在持续调研某个主题时，怎样用它把资料变成可 diff、可链接、可渐进展开的知识包。文末附一份可直接给 Agent 使用的 `SKILL.md`。
+
+> OKF 的核心判断很直接：知识最好写成能 `cat`、能 `git`、能塞进上下文窗口的文件；目录服务可以继续存在，但交换层应落在开放文件格式上。
+
+## 它在解决什么问题
+
+Agent 越来越常被要求“先读懂领域，再动手”。领域知识通常散落在三类地方：
+
+1. **服务型目录**：Dataplex、Unity Catalog、Collibra、内部数据字典。查询能力强，但需要 SDK、权限和稳定网络，也不适合做代码式 review。
+2. **个人笔记库**：Obsidian、Notion、各类 wiki。对人友好，但结构随意，Agent 很难稳定解析“类型、资源、引用关系”。
+3. **源码旁注释与 README**：可版本管理，但缺少统一的概念粒度与交叉链接约定。
+
+OKF 选了一条中间路线：**知识包 = 目录树 + Markdown 文件 + 少量 frontmatter 约定**。它故意不定义固定 taxonomy，也不绑定某家 Agent 框架；只固定“怎样才算一个可交换的知识文档”。
+
+仓库 README 把生产与消费两侧都说清楚了：
+
+- **任何人都能生产**：人手写、任意框架上的 Agent、从现有目录导出的管道、扫数据库的脚本。
+- **任何人都能消费**：静态文件服务、Obsidian / MkDocs、把文件直接塞进 LLM 上下文、搜索索引、图可视化。
+
+仓库里的 reference agent 只是“生产端的一个样例”，`visualize` 命令生成的 `viz.html` 只是“消费端的一个样例”。格式本身才是贡献。
+
+## OKF 长什么样
+
+### Bundle 与 Concept
+
+OKF 有两个基础单位：
+
+| 术语 | 含义 |
+|------|------|
+| **Knowledge Bundle** | 一整包知识，通常是一个目录，可放进 git |
+| **Concept** | 一个概念文档，对应一个 `.md` 文件 |
+| **Concept ID** | 相对 bundle 根目录的路径，去掉 `.md`，例如 `tables/orders` |
+
+目录结构由生产者自己决定，规范只保留两个特殊文件名：
+
+- `index.md`：目录清单，支持逐级展开（progressive disclosure）
+- `log.md`：变更日志，按日期倒序
+
+其余 `.md` 都是 concept。
+
+一个最小 bundle 大致是这样：
+
+```text
+my_bundle/
+├── index.md
+├── datasets/
+│   ├── index.md
+│   └── sales.md
+└── tables/
+    ├── index.md
+    ├── orders.md
+    └── customers.md
+```
+
+### Frontmatter：结构化的那一层
+
+每个 concept 必须以 YAML frontmatter 开头。**规范强制要求的只有 `type`**。推荐字段按优先级是：
+
+```yaml
+---
+type: BigQuery Table          # 必需
+title: Customer Orders        # 推荐：展示名
+description: One row per completed order.  # 推荐：一句话，会被 index 直接引用
+resource: https://...         # 推荐：底层资产 URI；抽象概念可没有
+tags: [sales, orders]         # 推荐
+timestamp: 2026-05-28T14:30:00Z
+# 其余键自由扩展
+---
+```
+
+`type` 不走中央注册表。生产者自己写描述性名字，如 `BigQuery Table`、`Metric`、`Playbook`、`Reference`；消费者遇到未知类型时，按通用 concept 处理即可。
+
+### Body：给人和模型真正读的部分
+
+正文是标准 Markdown。规范不强制章节，但约定了几类高频标题：
+
+| 标题 | 用途 |
+|------|------|
+| `# Schema` | 字段/列的结构化说明 |
+| `# Examples` | 用法示例，常是代码块 |
+| `# Citations` | 支撑正文论断的外部来源 |
+
+交叉链接用普通 Markdown 链接。规范推荐以 `/` 开头的 bundle 根相对路径；reference agent 在实际仓库渲染场景里更倾向文件相对路径，以避免 GitHub 预览失效。链接语义由周围文字表达（joins-with、depends-on 等），链接本身是无类型边。断链被允许——它可能只表示“还没写完”。
+
+### 合规边界很松
+
+一份 bundle 只要满足三条，就算符合 OKF v0.1：
+
+1. 非保留名的 `.md` 有可解析 frontmatter
+2. frontmatter 里有非空 `type`
+3. 若存在 `index.md` / `log.md`，结构符合约定
+
+缺可选字段、未知 type、未知扩展键、断链、没有 index，都不能成为拒绝理由。这种宽松消费模型是故意的：Agent 会半生成、会重构、会增量补写。
+
+## 仓库里的参考实现在做什么
+
+`okf/` 下的 reference agent 展示了一种自动生产路径，分两趟：
+
+### 第一趟：BQ pass
+
+从 BigQuery 元数据为每个 concept 写一份 OKF 文档。字段、分区、资源 URI 来自真实 schema，不靠模型编造。
+
+### 第二趟：Web pass
+
+把 LLM 当成有预算的爬虫：
+
+1. 从 seed URL 出发 `fetch_url`
+2. 判断哪些外链像权威文档，决定是否跟进
+3. 对抓到的页面做三选一：**增强已有 concept**、**新建 `references/<slug>`**、**跳过**
+4. 受 `--web-max-pages` 与同域 host 过滤约束，防止爬飞
+
+增强规则很严格：已有 `# Schema` 不能被网页摘要整页覆盖；`resource` 仍指向底层资产，网页 URL 进 Citations；只能扩展、合并标签、追加章节，不能整篇重写。网页里的 metric、join 路径等高信号内容，要落到独立的 reference concept，并带上具体 SQL，而不是一句“详见文档”。
+
+仓库内置了三份可浏览样例：
+
+- `bundles/ga4/`：GA4 电商样本
+- `bundles/stackoverflow/`：Stack Overflow 公共数据集
+- `bundles/crypto_bitcoin/`：比特币区块与交易
+
+每个样例都带 `viz.html`：把 bundle 嵌成 JSON，用 Cytoscape.js 做力图、详情面板、反向引用和类型过滤，无需后端。
+
+从 GA4 样例可以直观看到分层：
+
+```text
+ga4/
+├── index.md
+├── datasets/ga4_obfuscated_sample_ecommerce.md
+├── tables/events_.md
+└── references/
+    ├── metrics/user_count.md
+    └── joins/events___ads_clickstats.md
+```
+
+`user_count` 这类 metric reference 极短：一句话定义 + 一段 SQL + Citations。它存在的价值是可被多个主 concept 引用，而不是再写一篇长文。
+
+## 和个人研究的关系
+
+OKF 的官方场景是数据目录与 Agent 上下文。但格式本身并不绑定 BigQuery。个人做主题调研时，它正好补上“资料堆”和“可复用知识”之间的缺口。
+
+### 个人研究常见的失败形态
+
+1. **浏览器收藏夹型**：链接很多，概念之间没有稳定 ID
+2. **长文笔记型**：一篇万字 md 里什么都有，Agent 没法按需加载
+3. **聊天记录型**：判断散落在对话里，无法 diff、无法 review
+4. **向量库型**：检索方便，但缺少人可读的权威正文与版本历史
+
+OKF 的反制手段很具体：
+
+| 问题 | OKF 做法 |
+|------|----------|
+| 范围失控 | 一个 concept 一个文件；`index.md` 先列清单 |
+| 概念混在一起 | `type` + 目录分层（`papers/`、`claims/`、`tools/`） |
+| 判断无法回溯 | `# Citations` 强制来源；`log.md` 记变更 |
+| Agent 一次塞太多 | progressive disclosure：先读 index，再按需打开 concept |
+| 协作与复盘困难 | 整包进 git：PR、blame、line-level diff |
+
+### 更适合个人研究的 type 集合
+
+数据目录里常见 `BigQuery Table`。个人研究可以换成更贴近认知过程的类型，例如：
+
+| type | 写什么 |
+|------|--------|
+| `Topic` | 研究主题边界、非目标、核心问题 |
+| `Question` | 一个可回答的问题，及其当前状态 |
+| `Claim` | 一条有条件的判断，附证据与反证 |
+| `Source` | 论文、仓库、官方文档、播客等一手/二手来源 |
+| `Concept` | 领域术语、机制、对照表 |
+| `Route` | 技术路线或流派，以及它在坐标系中的位置 |
+| `Experiment` | 你实际跑过的试用、复现、对比 |
+| `OpenGap` | 已知信息缺口，避免假装已经搞清 |
+| `Playbook` | 可复用的操作步骤 |
+| `Reference` | 被多处引用的附录型材料 |
+
+这些 type 没有官方注册要求。重要的是在一次研究里保持稳定，并让 `description` 始终是一句能放进 index 的摘要。
+
+### 一个可用的个人研究 bundle 骨架
+
+```text
+research/<topic>/
+├── index.md
+├── log.md
+├── topic.md                 # type: Topic
+├── questions/
+│   ├── index.md
+│   └── q-what-problem.md
+├── claims/
+│   ├── index.md
+│   └── c-okf-beats-wiki.md
+├── sources/
+│   ├── index.md
+│   └── knowledge-catalog-repo.md
+├── concepts/
+│   ├── index.md
+│   ├── bundle.md
+│   └── progressive-disclosure.md
+├── routes/
+│   ├── index.md
+│   └── catalog-as-code.md
+├── experiments/
+│   └── try-ga4-bundle.md
+└── gaps/
+    └── missing-non-bq-producers.md
+```
+
+这样拆完之后，Agent 的默认工作方式可以变成：
+
+1. 读根 `index.md` 建立地图
+2. 只打开当前任务相关的 concept
+3. 写新判断时落到 `claims/`，并回链 `sources/`
+4. 发现未知时写 `gaps/`，而不是在长文里含糊带过
+
+这与“把全部 PDF 摘要塞进一次 prompt”相比，上下文更省，也更接近真实研究推进方式。
+
+## 和相近做法的差别
+
+OKF 并不孤独。它接近几类已有实践，但边界不同：
+
+| 做法 | 接近点 | 差别 |
+|------|--------|------|
+| Obsidian vault | md + 双链 | OKF 规定了最小 frontmatter 与保留文件名，便于跨工具交换 |
+| LLM wiki / agent memory 仓库 | Agent 可读知识库 | OKF 明确了 bundle 合规与渐进披露约定 |
+| Metadata as code | 元数据进 git | OKF 同时容纳非结构化正文，不只是 schema YAML |
+| 企业数据目录 | 语义与血缘 | OKF 是可搬运的文件格式，不替代服务端查询与治理 |
+
+一句话概括：OKF 把“知识写成代码协作对象”这件事，收敛成一份很薄的规范。
+
+## 什么时候值得用，什么时候不必
+
+**值得用：**
+
+- 主题会持续几周以上，资料会反复回看
+- 你希望 Agent 参与阅读、补全、交叉验证
+- 判断需要证据链，而不是一次性聊天结论
+- 你已经在用 Markdown / git 工作流
+
+**不必硬上：**
+
+- 一次性问答，答案用完即弃
+- 内容几乎全是私有二进制资产，无法文本化
+- 团队已经有强制统一的目录平台，且没有导出/同步需求
+
+OKF 的成本主要在“拆概念”和“写 description”。这个成本换来的是：后人（包括未来的你和 Agent）不用从一坨笔记里重新考古。
+
+## 附：OKF 生成 Skill
+
+下面这份 Skill 可直接复制为 `~/.claude/skills/okf-generator/SKILL.md`（或项目内 `.claude/skills/okf-generator/SKILL.md`）。它面向个人研究与通用知识包生成，兼容 OKF v0.1，不依赖 BigQuery。
+
+````markdown
+---
+name: okf-generator
+description: Use when the user wants to create, expand, or normalize an Open Knowledge Format (OKF) bundle for research notes, domain knowledge, data catalogs, or agent-readable context. Generates conformant markdown+YAML knowledge packages with concepts, indexes, links, and citations.
+---
+
+# OKF Generator
+
+## Overview
+
+Produce or refine an **Open Knowledge Format (OKF) v0.1** knowledge bundle: a directory of markdown files with YAML frontmatter, cross-links, progressive `index.md` files, and optional `log.md`.
+
+OKF is vendor-neutral. Anyone can author it; anyone can consume it (`cat`, git, Obsidian, LLM context, static hosting). This skill is a **producer**. Prefer small, concrete concept docs over monolithic notes.
+
+**Spec anchors (keep behavior aligned):**
+
+- Required frontmatter key: `type`
+- Recommended: `title`, `description`, `resource`, `tags`, `timestamp`
+- Reserved filenames: `index.md`, `log.md` (never use as concepts)
+- Concept ID = path relative to bundle root without `.md`
+- Broken links are allowed; invented facts are not
+
+## When to use
+
+- User asks to turn research / notes / a repo / a dataset into an OKF bundle
+- User wants agent-readable domain knowledge for later sessions
+- User wants to restructure messy markdown into linked concepts
+- User mentions OKF, knowledge bundle, knowledge catalog format, or “open knowledge format”
+
+## Inputs to collect (ask only if missing)
+
+1. **Topic / domain** — one sentence
+2. **Output path** — default `./okf-bundle/<slug>/` if unspecified
+3. **Source material** — files, URLs, repos, chat notes, or “from scratch”
+4. **Audience** — personal research | team wiki | agent context | data catalog
+5. **Scope non-goals** — what not to include this round
+
+If the user only gives a topic, proceed with a minimal skeleton + a short `gaps/` list of what still needs sources.
+
+## Core workflow
+
+### Phase 0 — Decide bundle shape
+
+Create a root directory. Choose a layout by audience:
+
+**A. Personal research (default)**
+
+```text
+<bundle>/
+├── index.md
+├── log.md
+├── topic.md
+├── questions/
+├── claims/
+├── sources/
+├── concepts/
+├── routes/          # optional: schools of thought / approaches
+├── experiments/     # optional: trials you actually ran
+├── playbooks/       # optional: procedures
+├── gaps/
+└── references/      # optional: multi-cited appendices
+```
+
+**B. Software / system domain**
+
+```text
+<bundle>/
+├── index.md
+├── log.md
+├── overview.md
+├── components/
+├── apis/
+├── decisions/       # ADRs as concepts
+├── runbooks/
+├── sources/
+└── gaps/
+```
+
+**C. Data catalog style**
+
+```text
+<bundle>/
+├── index.md
+├── datasets/
+├── tables/
+├── metrics/
+├── joins/
+└── references/
+```
+
+Do not invent a deep taxonomy on day one. Prefer 3–7 top-level groups.
+
+### Phase 1 — Inventory concepts
+
+From sources, list candidate concepts before writing files.
+
+For each candidate capture:
+
+| Field | Rule |
+|-------|------|
+| working title | human-readable |
+| proposed `type` | short descriptive string |
+| one-line description | max ~25 words; will feed `index.md` |
+| source pointers | URLs / paths that justify it |
+| links to | other concept IDs it should reference |
+
+**Split rules**
+
+- One primary idea per file
+- If a section needs its own citations and inbound links from ≥2 docs, promote it to a concept
+- Overviews, FAQs, changelogs, marketing pages: usually **do not** become standalone reference concepts; fold useful facts into existing docs or skip
+
+**Skip / gap rules**
+
+- No source → either omit or create `gaps/<slug>.md` stating what is unknown
+- Never fabricate schema fields, metrics SQL, paper results, or URLs
+
+### Phase 2 — Write concept documents
+
+Every concept file:
+
+```markdown
+---
+type: <Type>
+title: <Display name>
+description: <One sentence summary>
+resource: <Optional canonical URI>
+tags: [tag1, tag2]
+timestamp: <ISO 8601 Z>
+---
+
+<prose>
+
+# Optional conventional sections
+```
+
+#### Frontmatter rules
+
+| Key | Required | Guidance |
+|-----|----------|----------|
+| `type` | yes | Stable within the bundle. Examples below |
+| `title` | strongly recommended | Display name; if omitted consumers may use filename |
+| `description` | strongly recommended | **Exactly one sentence.** Used verbatim in indexes |
+| `resource` | when bound to an asset | Dataset URI, paper DOI/URL, repo URL, API path. Abstract ideas may omit |
+| `tags` | recommended | Short, searchable; merge on updates, don’t silently drop |
+| `timestamp` | recommended | ISO 8601; update on meaningful change |
+| extensions | allowed | Preserve unknown keys on round-trip |
+
+**Suggested `type` values**
+
+Personal research: `Topic`, `Question`, `Claim`, `Source`, `Concept`, `Route`, `Experiment`, `OpenGap`, `Playbook`, `Reference`
+
+Systems: `Component`, `API`, `Decision`, `Runbook`, `Service`, `Reference`
+
+Data: `BigQuery Dataset`, `BigQuery Table`, `Metric`, `Join`, `Reference`
+
+Consumers must tolerate unknown types — pick descriptive names over empty generics when possible.
+
+#### Body rules
+
+Order for most docs:
+
+1. Short prose (1–3 paragraphs): what it is, grain/scope, caveats
+2. Structured sections as needed (`# Schema`, `# Evidence`, `# Counterevidence`, `# Examples`, `# Steps`, …)
+3. `# Citations` last when claims need backing
+
+Style:
+
+- Concrete names > vague praise
+- Prefer headings, lists, tables, fenced code
+- No preamble, apologies, or chain-of-thought in the body
+- Body must be directly consumable by a human or downstream agent
+
+#### Type-specific body patterns
+
+**Topic**
+
+- Boundary, non-goals, core questions, success criteria for the research
+
+**Question**
+
+- Why it matters, current answer status (`open` / `partial` / `answered`), links to claims & sources
+
+**Claim**
+
+- Statement in one sentence (prefer conditional judgments: “under X, Y”)
+- Evidence bullets with links to `sources/` or external citations
+- Counterevidence / limits
+- Confidence note only if grounded (e.g. “single secondary source”)
+
+**Source**
+
+- What it is, author/org, date, why it matters for this bundle
+- Key takeaways (bullets)
+- Limitations (bias, age, scope)
+- `resource` = canonical URL
+
+**Concept**
+
+- Definition, mechanism, comparison to neighbors
+- Optional glossary table
+
+**Route**
+
+- Problem framing, key mechanism, trade-offs, representative examples
+
+**Experiment**
+
+- Setup, steps, observed result, artifacts paths, what it does/doesn’t prove
+
+**OpenGap**
+
+- What is unknown, why it blocks, how one might close it
+
+**Playbook**
+
+- Trigger, steps, verification, rollback/failure notes
+
+**Reference** (multi-cited appendix)
+
+- Only mint if **all** hold:
+  1. Referenceable by name from primary docs
+  2. Not bundle-level meta (overview / quickstart / FAQ / changelog)
+  3. You can write: “See the [X reference](…) for …” with X a concrete noun
+  4. ≥2 concepts benefit, OR one concept needs load-bearing background that doesn’t fit inline
+- When in doubt, **skip** or fold into an existing doc
+
+**Table / schema-like**
+
+- `# Schema` must reflect real metadata only
+- Optional `# Common query patterns` with real examples
+- Do not invent columns
+
+### Phase 3 — Cross-linking
+
+- Link when prose naturally names another concept
+- Prefer **file-relative** links so GitHub and local browsing work:
+  - sibling: `[orders](orders.md)`
+  - parent: `[sales dataset](../datasets/sales.md)`
+  - reference: `[user count](../references/metrics/user_count.md)`
+- Absolute bundle-root links (`/tables/orders.md`) are OKF-legal; use only if the target environment resolves them
+- One link per concept mention per section is enough
+- Do not link from headings, code blocks, or raw schema field lists
+- Do not self-link
+- Only link to concepts that exist (or will exist in this same write pass)
+- Broken links to future work are acceptable if intentional; prefer a `gaps/` doc for known holes
+
+### Phase 4 — Indexes and log
+
+#### `index.md` (any directory)
+
+- **No frontmatter** at non-root levels
+- Root `index.md` MAY include frontmatter only for `okf_version: "0.1"`
+- Structure:
+
+```markdown
+# Section name
+
+* [Title](path.md) - description from frontmatter
+* [Subdir](subdir/) - one-sentence summary of the group
+```
+
+- Descriptions SHOULD come from each concept’s `description`
+- Generate indexes bottom-up after concepts exist
+- If a directory has a single child, still add index for stable navigation
+
+#### `log.md` (optional but recommended for multi-session research)
+
+```markdown
+# Update Log
+
+## YYYY-MM-DD
+* **Creation**: …
+* **Update**: …
+* **Deprecation**: …
+```
+
+Newest date first. Bold lead word is convention, not required.
+
+### Phase 5 — Conformance check
+
+Before finishing, verify:
+
+- [ ] Every non-reserved `.md` has parseable YAML frontmatter
+- [ ] Every frontmatter has non-empty `type`
+- [ ] Every concept has a tight one-sentence `description` when practical
+- [ ] No concept uses filename `index.md` or `log.md`
+- [ ] Relative links resolve for files written in this pass
+- [ ] No invented URLs, fields, metrics, or paper results
+- [ ] `index.md` files list real children with useful descriptions
+- [ ] Claims that assert facts have `# Citations` or links to `sources/`
+- [ ] Gaps are explicit documents or clearly marked — not silent omission presented as certainty
+
+### Phase 6 — Handoff
+
+Return to the user:
+
+1. Bundle root path
+2. Concept count by `type`
+3. How to browse: open root `index.md`, or drag into Obsidian, or feed selective files to an agent
+4. Suggested next enrichment steps (which `gaps/` to close first)
+5. Optional: command ideas for visualization / packaging (zip, git init) — do not require Google tooling
+
+## Update / enrich existing bundles
+
+When a bundle already exists:
+
+1. Read target concept with full frontmatter + body
+2. Treat existing structure as source of truth
+3. **Augment, don’t rewrite**:
+   - Preserve all existing frontmatter keys/values unless improving `description` or merging `tags`
+   - Keep every existing top-level `#` heading and order; you may extend under them or append new headings after
+   - For schema-like sections populated from real metadata: never drop fields
+   - Put new external URLs in `# Citations`, not overwriting `resource` unless the asset identity truly changed
+4. Refresh `timestamp` on meaningful edits
+5. Append `log.md` entry
+6. Regenerate affected `index.md` descriptions if titles/descriptions changed
+
+## Progressive disclosure for agents consuming the bundle
+
+When **using** a bundle (not only writing one):
+
+1. Start at root `index.md`
+2. Open only directories relevant to the current question
+3. Read leaf concepts last
+4. Prefer citing concept IDs in answers so humans can open the same files
+5. Do not dump the entire bundle into context if indexes exist
+
+## Quality bar (what “good OKF” means)
+
+| Good | Bad |
+|------|-----|
+| Small concepts with stable IDs | One 8k-line `notes.md` |
+| Conditional claims + citations | Orphan opinions with no source |
+| Indexes that enable skimming | Directory full of files, no map |
+| Explicit `gaps/` | Confident prose hiding unknowns |
+| Relative links that browse on GitHub | Links that only work in one proprietary app |
+| Types stable within the bundle | Random type strings each file |
+
+## Common mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Putting overview/tutorial pages into `references/` | Skip or extract only named metrics/enums/defs |
+| Rewriting entire docs on each enrichment | Augment in place; preserve headings & schema |
+| Multi-sentence `description` | Compress to one sentence for indexes |
+| Using `index.md` as a concept | Move content to `overview.md` or `topic.md` |
+| Inventing SQL/metrics from memory | Quote only from provided sources; else `gaps/` |
+| Absolute `/...` links on GitHub-first bundles | Prefer file-relative links |
+| Tags replaced wholesale | Union old ∪ new |
+| No citations on strong claims | Add `# Citations` or demote to `OpenGap` |
+
+## Minimal examples
+
+### Claim
+
+```markdown
+---
+type: Claim
+title: File-based knowledge beats chat memory for multi-week research
+description: Multi-week research stays reviewable when claims live as versioned files with citations.
+tags: [research-method, okf]
+timestamp: 2026-07-20T00:00:00Z
+---
+
+Under multi-week personal research, storing claims as individual markdown concepts with citations is more recoverable than leaving judgments in chat transcripts.
+
+# Evidence
+
+- Chat transcripts lack stable IDs and line-level review.
+- Git diffs make claim edits explicit over time.
+- See [Open Knowledge Format](../sources/okf-spec.md).
+
+# Limits
+
+- High authoring cost for throwaway questions.
+- Requires discipline to split concepts.
+
+# Citations
+
+[1] [OKF SPEC inspiration](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+```
+
+### Source
+
+```markdown
+---
+type: Source
+title: GoogleCloudPlatform/knowledge-catalog OKF
+description: Upstream OKF v0.1 draft and reference agent for markdown knowledge bundles.
+resource: https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf
+tags: [okf, primary-source]
+timestamp: 2026-07-20T00:00:00Z
+---
+
+Upstream repository defining Open Knowledge Format and shipping a BigQuery + web enrichment reference agent.
+
+# Key takeaways
+
+- Bundle = directory of md + YAML frontmatter
+- Only `type` is strictly required
+- Designed for both humans and agents without SDKs
+
+# Limitations
+
+- Official samples focus on BigQuery-shaped catalogs
+- Format is still v0.1 draft
+```
+
+### Root index
+
+```markdown
+---
+okf_version: "0.1"
+---
+
+# Overview
+
+* [Topic](topic.md) - Research boundary and core questions for OKF personal use.
+
+# Groups
+
+* [claims](claims/) - Conditional judgments with evidence.
+* [sources](sources/) - Primary and secondary materials.
+* [gaps](gaps/) - Known unknowns still blocking confidence.
+```
+
+## Execution checklist
+
+Copy and track:
+
+```text
+OKF generation
+- [ ] Scope + non-goals confirmed
+- [ ] Bundle root created
+- [ ] Concept inventory listed (title/type/description/sources)
+- [ ] Concept files written (frontmatter + body)
+- [ ] Cross-links added
+- [ ] index.md generated per directory
+- [ ] log.md started/updated
+- [ ] Conformance check passed
+- [ ] Handoff summary returned
+```
+
+## Non-goals
+
+- Replacing enterprise catalog services (governance, ACL, lineage queries)
+- Mandating a global taxonomy of types
+- Requiring Gemini / BigQuery / GCP credentials
+- Building a visualizer (optional; out of scope unless user asks)
+````
+
+## 收尾
+
+Knowledge Catalog 仓库里真正有迁移价值的，不只是某个 GCP 产品的样例代码，而是 OKF 对知识形态的判断：用最小约定，让知识同时对人可读、对 Agent 可解析、对 git 可协作。
+
+对个人研究者来说，它提供的是一种把“我查过什么、我信什么、我还缺什么”外化为目录结构的方法。结构一旦成立，Agent 就不再只能在聊天窗口里临时聪明一次，而可以在同一份知识包上持续读写。
