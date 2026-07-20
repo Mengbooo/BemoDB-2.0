@@ -11,51 +11,71 @@ draft: false
 comment: false
 ---
 
-[GoogleCloudPlatform/knowledge-catalog](https://github.com/GoogleCloudPlatform/knowledge-catalog) 是 Google Cloud 放出的一组工具、样例与格式规范。仓库顶层最值得单独拎出来看的部分，是 `okf/`：Open Knowledge Format。
+[GoogleCloudPlatform/knowledge-catalog](https://github.com/GoogleCloudPlatform/knowledge-catalog) 是 Google Cloud 放出的一组工具、样例与格式规范。仓库里真正值得单独拎出来的，是 `okf/`：**Open Knowledge Format**——一种用 Markdown + YAML frontmatter 表示知识的开放格式。
 
-Knowledge Catalog（前身是 Dataplex 的能力方向）定位是 AI 驱动的数据目录与元数据管理平台，目标是把结构化、非结构化数据组织成动态知识图，给 AI Agent 提供语义和业务上下文。OKF 则是这个方向里被明确抽出来、做成开放格式的那一层：用带 YAML frontmatter 的 Markdown 目录树，表示可被人和 Agent 共同读写的知识。
+Knowledge Catalog（能力方向承接自 Dataplex 一类数据目录产品）要做的是：把结构化与非结构化数据收成可查询的知识图，给 AI Agent 提供语义和业务上下文。OKF 是这条产品线里被抽出来、写成规范的那一层交换格式：不绑定某家 Agent 框架，也不要求中央 schema 注册表。
 
-这篇文章先讲 OKF 解决什么问题、规范长什么样，再落到个人研究场景：当你在持续调研某个主题时，怎样用它把资料变成可 diff、可链接、可渐进展开的知识包。文末附一份可直接给 Agent 使用的 `SKILL.md`。
+这篇文章按这条线展开：OKF 解决什么问题、v0.1 规范具体约定了什么、仓库里的 reference agent 怎么生产与消费、个人研究怎么用。文末附一份可直接给 Agent 用的生成 Skill（嵌在正文里）。
 
-> OKF 的核心判断很直接：知识最好写成能 `cat`、能 `git`、能塞进上下文窗口的文件；目录服务可以继续存在，但交换层应落在开放文件格式上。
+> OKF 的判断很直接：知识最好写成能 `cat`、能 `git`、能塞进上下文窗口的文件。目录服务可以继续存在，但**交换层**应落在开放文件格式上。
 
 ## 它在解决什么问题
 
-Agent 越来越常被要求“先读懂领域，再动手”。领域知识通常散落在三类地方：
+Agent 越来越常被要求「先读懂领域，再动手」。领域知识通常散落在三类地方，各自卡在不同点上：
 
-1. **服务型目录**：Dataplex、Unity Catalog、Collibra、内部数据字典。查询能力强，但需要 SDK、权限和稳定网络，也不适合做代码式 review。
-2. **个人笔记库**：Obsidian、Notion、各类 wiki。对人友好，但结构随意，Agent 很难稳定解析“类型、资源、引用关系”。
-3. **源码旁注释与 README**：可版本管理，但缺少统一的概念粒度与交叉链接约定。
+| 形态 | 强项 | 卡点 |
+|------|------|------|
+| 服务型目录（Dataplex、Unity Catalog、Collibra、内部数据字典） | 查询、权限、治理 | 要 SDK 与网络；难做代码式 review / diff |
+| 个人笔记库（Obsidian、Notion、各类 wiki） | 对人友好、好写 | 结构随意；Agent 难稳定解析类型、资源、引用 |
+| 源码旁 README / 注释 | 可版本管理 | 缺少统一的概念粒度与交叉链接约定 |
 
-OKF 选了一条中间路线：**知识包 = 目录树 + Markdown 文件 + 少量 frontmatter 约定**。它故意不定义固定 taxonomy，也不绑定某家 Agent 框架；只固定“怎样才算一个可交换的知识文档”。
+OKF 选中间路线：
 
-仓库 README 把生产与消费两侧都说清楚了：
+```text
+知识包 = 目录树 + Markdown 文件 + 少量 frontmatter 约定
+```
 
-- **任何人都能生产**：人手写、任意框架上的 Agent、从现有目录导出的管道、扫数据库的脚本。
-- **任何人都能消费**：静态文件服务、Obsidian / MkDocs、把文件直接塞进 LLM 上下文、搜索索引、图可视化。
+它故意不做三件事（SPEC 的 Non-goals）：
 
-仓库里的 reference agent 只是“生产端的一个样例”，`visualize` 命令生成的 `viz.html` 只是“消费端的一个样例”。格式本身才是贡献。
+1. 不规定固定的概念类型表（taxonomy）  
+2. 不规定存储、服务、查询基础设施  
+3. 不取代 Avro / Protobuf / OpenAPI 等域内 schema——OKF **引用**它们，不吞并它们  
 
-## OKF 长什么样
+仓库 README 把两侧写死：
 
-### Bundle 与 Concept
+- **Anyone can produce**：人手写、任意框架上的 Agent、从现有目录导出的管道、扫库脚本  
+- **Anyone can consume**：静态文件服务、Obsidian / MkDocs、把文件直接塞进 LLM 上下文、搜索索引、图可视化  
 
-OKF 有两个基础单位：
+因此：`okf/` 里的 reference agent 只是**生产端样例**，`visualize` 生成的 `viz.html` 只是**消费端样例**。格式本身才是贡献。
+
+## 规范里有什么（OKF v0.1）
+
+SPEC 路径：仓库内 `okf/SPEC.md`，版本 **0.1 Draft**。下面按「必须先懂的术语 → 文件长什么样 → 合规底线」写。
+
+### 术语
 
 | 术语 | 含义 |
 |------|------|
-| **Knowledge Bundle** | 一整包知识，通常是一个目录，可放进 git |
-| **Concept** | 一个概念文档，对应一个 `.md` 文件 |
-| **Concept ID** | 相对 bundle 根目录的路径，去掉 `.md`，例如 `tables/orders` |
+| **Knowledge Bundle** | 一整包知识，通常是一个目录，可放进 git；分发单位 |
+| **Concept** | 一个概念文档 = 一个 `.md` 文件；可以是表/API，也可以是指标/流程等抽象物 |
+| **Concept ID** | 相对 bundle 根的路径，去掉 `.md`。`tables/users.md` → `tables/users` |
+| **Frontmatter** | 文件顶部 `---` 包裹的 YAML |
+| **Body** | frontmatter 之后的 Markdown 正文 |
+| **Link** | 概念之间的 Markdown 链接（比目录父子关系更自由的边） |
+| **Citation** | 指向外部来源、支撑正文论断的链接 |
 
-目录结构由生产者自己决定，规范只保留两个特殊文件名：
+### Bundle 目录
 
-- `index.md`：目录清单，支持逐级展开（progressive disclosure）
-- `log.md`：变更日志，按日期倒序
+目录怎么分组由生产者决定，规范只保留两个文件名：
 
-其余 `.md` 都是 concept。
+| 保留名 | 作用 |
+|--------|------|
+| `index.md` | 目录清单，支持逐级展开（progressive disclosure：先看列表，再打开单个文件） |
+| `log.md` | 变更日志，按日期倒序 |
 
-一个最小 bundle 大致是这样：
+其余 `.md` 都是 concept，**不能**用这两个名字当普通概念文档。
+
+最小形态：
 
 ```text
 my_bundle/
@@ -69,74 +89,151 @@ my_bundle/
     └── customers.md
 ```
 
-### Frontmatter：结构化的那一层
+分发方式：git 仓库（推荐）、tar/zip、或大仓里的子目录。
 
-每个 concept 必须以 YAML frontmatter 开头。**规范强制要求的只有 `type`**。推荐字段按优先级是：
+### Concept 文件长什么样
+
+每个 concept 两段：
+
+1. YAML frontmatter（必需有可解析的块）  
+2. Markdown body（自由正文）
+
+#### Frontmatter
+
+**SPEC 强制要求的只有 `type`**（非空字符串）。推荐字段按优先级：
 
 ```yaml
 ---
-type: BigQuery Table          # 必需
-title: Customer Orders        # 推荐：展示名
-description: One row per completed order.  # 推荐：一句话，会被 index 直接引用
-resource: https://...         # 推荐：底层资产 URI；抽象概念可没有
-tags: [sales, orders]         # 推荐
-timestamp: 2026-05-28T14:30:00Z
-# 其余键自由扩展
+type: BigQuery Table          # 必需：概念种类，用于过滤/展示
+title: Customer Orders        # 推荐：展示名；缺了可从文件名推
+description: One row per completed order.  # 推荐：一句话；index 会直接引用
+resource: https://...         # 推荐：底层资产 URI；纯抽象概念可没有
+tags: [sales, orders]         # 推荐：横切分类
+timestamp: 2026-05-28T14:30:00Z  # 推荐：ISO 8601
+# 其余键自由扩展；消费者应保留未知键
 ---
 ```
 
-`type` 不走中央注册表。生产者自己写描述性名字，如 `BigQuery Table`、`Metric`、`Playbook`、`Reference`；消费者遇到未知类型时，按通用 concept 处理即可。
+注意一个实现与规范的差：
 
-### Body：给人和模型真正读的部分
+| 层级 | `type` | `title` / `description` / `timestamp` |
+|------|--------|----------------------------------------|
+| SPEC v0.1 合规 | 必需 | 推荐 |
+| 仓库 reference agent 写出时（`OKFDocument.validate`） | 必需 | **也当必需**（工具层更严） |
 
-正文是标准 Markdown。规范不强制章节，但约定了几类高频标题：
+`type` **没有中央注册表**。生产者写描述性名字即可，例如 `BigQuery Table`、`Metric`、`Playbook`、`Reference`。消费者遇到未知 type，按通用 concept 处理，不要拒收。
+
+#### Body
+
+标准 Markdown。无强制章节；高频约定标题：
 
 | 标题 | 用途 |
 |------|------|
 | `# Schema` | 字段/列的结构化说明 |
-| `# Examples` | 用法示例，常是代码块 |
-| `# Citations` | 支撑正文论断的外部来源 |
+| `# Examples` 或常见 query 段 | 用法示例，常是代码块 |
+| `# Citations` | 支撑论断的外部来源，建议放文末、编号列出 |
 
-交叉链接用普通 Markdown 链接。规范推荐以 `/` 开头的 bundle 根相对路径；reference agent 在实际仓库渲染场景里更倾向文件相对路径，以避免 GitHub 预览失效。链接语义由周围文字表达（joins-with、depends-on 等），链接本身是无类型边。断链被允许——它可能只表示“还没写完”。
+正文应偏「结构」（标题、列表、表、代码块），方便人扫，也方便 Agent 截取。
 
-### 合规边界很松
+### 交叉链接
 
-一份 bundle 只要满足三条，就算符合 OKF v0.1：
+用普通 Markdown 链接。SPEC 支持两种：
 
-1. 非保留名的 `.md` 有可解析 frontmatter
-2. frontmatter 里有非空 `type`
-3. 若存在 `index.md` / `log.md`，结构符合约定
+1. **Bundle 根相对**（以 `/` 开头）：`[customers](/tables/customers.md)`——文档在子目录间移动时更稳  
+2. **文件相对**：`[customers](../tables/customers.md)`——在 GitHub 上直接预览更友好  
 
-缺可选字段、未知 type、未知扩展键、断链、没有 index，都不能成为拒绝理由。这种宽松消费模型是故意的：Agent 会半生成、会重构、会增量补写。
+仓库里的 reference agent **明确要求文件相对路径**，并写明：以 `/` 开头的链接在 GitHub 渲染会坏。读 SPEC 与读 agent prompt 时，以「你的消费场景」为准：只给人本地 `cat` 可跟 SPEC；要挂 GitHub 浏览，跟 agent 的相对路径约定。
+
+链接语义由周围文字表达（joins-with、depends-on 等），链接本身是无类型边。**断链合法**——可能只表示还没写完。
+
+### index.md 与 log.md
+
+**index.md**（任意目录可有）：
+
+- 通常无 frontmatter；**根 index 例外**：可带 frontmatter 声明 `okf_version: "0.1"`  
+- 正文用标题分组 + 列表：`* [标题](path) - 一句话描述`  
+- 描述优先取自各 concept 的 `description`  
+- 可自动生成；没有 index 时，消费者也可临时合成  
+
+**log.md**（可选）：
+
+- 按 `YYYY-MM-DD` 倒序  
+- 条目是散文；前导 `**Update**` / `**Creation**` 等是习惯，不是强制语法  
+
+### 合规底线（v0.1）
+
+一份 bundle 满足三条即合规：
+
+1. 非保留名的 `.md` 有可解析 YAML frontmatter  
+2. frontmatter 有非空 `type`  
+3. 若存在 `index.md` / `log.md`，结构符合 §6 / §7  
+
+下列情况 **不得** 成为拒收理由：缺可选字段、未知 type、未知扩展键、断链、没有 index。宽松消费是故意的——Agent 会半生成、会重构、会增量补写。
 
 ## 仓库里的参考实现在做什么
 
-`okf/` 下的 reference agent 展示了一种自动生产路径，分两趟：
+路径：`okf/`。Python 包，入口是 `reference_agent` 子命令。两条主能力：
 
-### 第一趟：BQ pass
+| 命令意图 | 干什么 |
+|----------|--------|
+| `enrich` | 从数据源（样例是 BigQuery）+ 可选网页，写出一整个 OKF bundle |
+| `visualize` | 把已有 bundle 打成单文件交互 HTML（`viz.html`），无需后端 |
 
-从 BigQuery 元数据为每个 concept 写一份 OKF 文档。字段、分区、资源 URI 来自真实 schema，不靠模型编造。
+### 生产路径：两趟 pass
 
-### 第二趟：Web pass
+#### 第一趟：BQ pass（元数据落盘）
 
-把 LLM 当成有预算的爬虫：
+对 source 宣称的每个 concept，用 **BigQuery 元数据**写一份 OKF 文档：schema、分区、resource URI 等来自真实接口，不靠模型编造字段。
 
-1. 从 seed URL 出发 `fetch_url`
-2. 判断哪些外链像权威文档，决定是否跟进
-3. 对抓到的页面做三选一：**增强已有 concept**、**新建 `references/<slug>`**、**跳过**
-4. 受 `--web-max-pages` 与同域 host 过滤约束，防止爬飞
+Agent 单 concept 的 enrichment 工作流（`reference_instruction.md`）是固定五步，最后只允许调用一次写出：
 
-增强规则很严格：已有 `# Schema` 不能被网页摘要整页覆盖；`resource` 仍指向底层资产，网页 URL 进 Citations；只能扩展、合并标签、追加章节，不能整篇重写。网页里的 metric、join 路径等高信号内容，要落到独立的 reference concept，并带上具体 SQL，而不是一句“详见文档”。
+1. `read_existing_doc`：有旧文档则 refine，不整页推翻  
+2. `read_concept_raw`：读结构化元数据  
+3. 可选 `sample_rows`：元数据稀疏时看几行样例  
+4. `list_concepts`：知道 bundle 里还有谁，好写交叉链接  
+5. `write_concept_doc`：**恰好一次**，然后停  
 
-仓库内置了三份可浏览样例：
+Body 约定顺序：短散文（表要写清 grain：一行代表什么）→ `# Schema` → `# Common query patterns`（1–3 段 SQL）→ `# Citations`（`resource` 优先进引用）。
 
-- `bundles/ga4/`：GA4 电商样本
-- `bundles/stackoverflow/`：Stack Overflow 公共数据集
-- `bundles/crypto_bitcoin/`：比特币区块与交易
+#### 第二趟：Web pass（有预算的爬取增强）
 
-每个样例都带 `viz.html`：把 bundle 嵌成 JSON，用 Cytoscape.js 做力图、详情面板、反向引用和类型过滤，无需后端。
+把 LLM 当成爬虫决策器，而不是无界浏览器：
 
-从 GA4 样例可以直观看到分层：
+1. 从 seed URL 列表出发抓取（`fetch_url`）  
+2. 从外链里挑「像权威文档」的继续跟  
+3. 对每个页面三选一：  
+   - **增强已有 concept**  
+   - **新建** `references/<slug>` 参考文档  
+   - **跳过**  
+4. 硬约束：`--web-max-pages` 页数上限、默认同域 / 允许 host 过滤——防止爬飞  
+
+增强（augmentation）规则比「再写一遍」严：
+
+- frontmatter 必须整表带回：漏键等于删键；`type` / `title` / `resource` 通常原样保留  
+- 网页 URL 进 `# Citations`，**不要**盖掉资产的 `resource`  
+- body 里已有一级标题必须保留且同序；只能在标题下扩展、追加新一级标题在后、或合并 tags  
+- BigQuery 表的 `# Schema` 不得被网页摘要整页替换——schema 来自元数据真相  
+- 网页上的 metric / join 等高信号内容，应落到独立 reference 文档，并尽量带上**具体 SQL**，而不是「详见文档」一句  
+
+新建 `references/` 也有四道门（主题可被主文档按名字引用、不是 overview/quickstart 类元页面、能写出 “See the X reference for…”、至少两个概念用得上或一个概念强依赖）。拿不准就 **skip**——空的 `references/` 好过一堆噪声 overview。
+
+可用 `--no-web` 只跑 BQ pass；可用 `--concept` 只打磨单个 concept。
+
+### 消费路径：visualize
+
+`visualize` 把 bundle 嵌成 JSON，生成自包含 HTML：力图（节点按 type、边来自 Markdown 链接）、详情面板、反向引用、搜索与类型过滤。依赖浏览器里的图库与 Markdown 渲染，不需要服务端。
+
+### 样例 bundle
+
+仓库内置三份（`bundles/`）：
+
+| 目录 | 内容 |
+|------|------|
+| `ga4/` | GA4 电商导出样本 |
+| `stackoverflow/` | Stack Overflow 公共数据集 |
+| `crypto_bitcoin/` | 比特币区块 / 交易 |
+
+GA4 的分层直观：
 
 ```text
 ga4/
@@ -144,123 +241,116 @@ ga4/
 ├── datasets/ga4_obfuscated_sample_ecommerce.md
 ├── tables/events_.md
 └── references/
-    ├── metrics/user_count.md
+    ├── metrics/user_count.md      # 一句话 + SQL + Citations
     └── joins/events___ads_clickstats.md
 ```
 
-`user_count` 这类 metric reference 极短：一句话定义 + 一段 SQL + Citations。它存在的价值是可被多个主 concept 引用，而不是再写一篇长文。
+`user_count` 这类 metric reference 极短：定义 + SQL 表达式 + 来源。价值是被多个主 concept 引用，而不是再写一篇长文。
 
 ## 和个人研究的关系
 
-OKF 的官方场景是数据目录与 Agent 上下文。但格式本身并不绑定 BigQuery。个人做主题调研时，它正好补上“资料堆”和“可复用知识”之间的缺口。
+官方场景是数据目录与 Agent 上下文。格式本身不绑定 BigQuery。个人做持续调研时，它补的是「资料堆」和「可复用知识」之间的缺口。
 
-### 个人研究常见的失败形态
+### 常见失败形态 → OKF 对应手段
 
-1. **浏览器收藏夹型**：链接很多，概念之间没有稳定 ID
-2. **长文笔记型**：一篇万字 md 里什么都有，Agent 没法按需加载
-3. **聊天记录型**：判断散落在对话里，无法 diff、无法 review
-4. **向量库型**：检索方便，但缺少人可读的权威正文与版本历史
+| 失败形态 | 症状 | OKF 怎么对 |
+|----------|------|------------|
+| 收藏夹型 | 链接多，概念无稳定 ID | 一 concept 一文件；Concept ID = 路径 |
+| 长文笔记型 | 万字 md 什么都有，Agent 无法按需加载 | `index.md` 先列清单；按需打开叶子 |
+| 聊天记录型 | 判断散落对话，无法 diff / review | 判断进 `claims/`；整包进 git |
+| 向量库型 | 好检索，缺权威正文与版本史 | Markdown 真源 + frontmatter 可过滤字段 |
 
-OKF 的反制手段很具体：
-
-| 问题 | OKF 做法 |
-|------|----------|
-| 范围失控 | 一个 concept 一个文件；`index.md` 先列清单 |
-| 概念混在一起 | `type` + 目录分层（`papers/`、`claims/`、`tools/`） |
-| 判断无法回溯 | `# Citations` 强制来源；`log.md` 记变更 |
-| Agent 一次塞太多 | progressive disclosure：先读 index，再按需打开 concept |
-| 协作与复盘困难 | 整包进 git：PR、blame、line-level diff |
-
-### 更适合个人研究的 type 集合
-
-数据目录里常见 `BigQuery Table`。个人研究可以换成更贴近认知过程的类型，例如：
+个人研究可用的 type（非官方注册，一次调研内保持稳定即可）：
 
 | type | 写什么 |
 |------|--------|
-| `Topic` | 研究主题边界、非目标、核心问题 |
-| `Question` | 一个可回答的问题，及其当前状态 |
-| `Claim` | 一条有条件的判断，附证据与反证 |
-| `Source` | 论文、仓库、官方文档、播客等一手/二手来源 |
-| `Concept` | 领域术语、机制、对照表 |
-| `Route` | 技术路线或流派，以及它在坐标系中的位置 |
-| `Experiment` | 你实际跑过的试用、复现、对比 |
-| `OpenGap` | 已知信息缺口，避免假装已经搞清 |
-| `Playbook` | 可复用的操作步骤 |
-| `Reference` | 被多处引用的附录型材料 |
+| `Topic` | 边界、非目标、核心问题 |
+| `Question` | 可回答的问题 + 当前状态（open / partial / answered） |
+| `Claim` | 有条件的判断 + 证据 / 反证 |
+| `Source` | 论文、仓库、官方文档等 |
+| `Concept` | 术语、机制、对照 |
+| `Route` | 技术路线 / 流派在坐标系中的位置 |
+| `Experiment` | 实际试用、复现、对比 |
+| `OpenGap` | 已知缺口，避免假装已搞清 |
+| `Playbook` | 可复用步骤 |
+| `Reference` | 被多处引用的附录材料 |
 
-这些 type 没有官方注册要求。重要的是在一次研究里保持稳定，并让 `description` 始终是一句能放进 index 的摘要。
+`description` 始终保持**一句**，因为 index 会直接引用它。
 
-### 一个可用的个人研究 bundle 骨架
+### 个人研究 bundle 骨架示例
 
 ```text
 research/<topic>/
 ├── index.md
 ├── log.md
-├── topic.md                 # type: Topic
+├── topic.md
 ├── questions/
-│   ├── index.md
-│   └── q-what-problem.md
 ├── claims/
-│   ├── index.md
-│   └── c-okf-beats-wiki.md
 ├── sources/
-│   ├── index.md
-│   └── knowledge-catalog-repo.md
 ├── concepts/
-│   ├── index.md
-│   ├── bundle.md
-│   └── progressive-disclosure.md
 ├── routes/
-│   ├── index.md
-│   └── catalog-as-code.md
 ├── experiments/
-│   └── try-ga4-bundle.md
 └── gaps/
-    └── missing-non-bq-producers.md
 ```
 
-这样拆完之后，Agent 的默认工作方式可以变成：
+Agent 默认工作方式可以变成：
 
-1. 读根 `index.md` 建立地图
-2. 只打开当前任务相关的 concept
-3. 写新判断时落到 `claims/`，并回链 `sources/`
-4. 发现未知时写 `gaps/`，而不是在长文里含糊带过
+1. 读根 `index.md` 建立地图  
+2. 只打开当前任务相关的 concept  
+3. 新判断写到 `claims/`，回链 `sources/`  
+4. 未知写到 `gaps/`，不在长文里含糊带过  
 
-这与“把全部 PDF 摘要塞进一次 prompt”相比，上下文更省，也更接近真实研究推进方式。
+这比「把全部 PDF 摘要塞进一次 prompt」更省上下文，也更接近真实研究推进：地图 → 深挖 → 有条件判断 → 标缺口。
+
+### 生产与消费时的两条纪律
+
+**生产（人或 Agent 写 bundle）**
+
+- 无来源的事实：要么不写，要么进 `OpenGap`  
+- 增强已有文档：augment，不整页 rewrite（与 reference agent 规则一致）  
+- 链接只指向真实存在（或本轮会写出）的 concept  
+
+**消费（Agent 读 bundle）**
+
+1. 从根 `index.md` 开始  
+2. 只下钻与当前问题相关的目录  
+3. 最后才读叶子 concept  
+4. 回答里引用 Concept ID，方便人打开同一文件  
+5. 有 index 时不要整包灌进上下文  
 
 ## 和相近做法的差别
 
-OKF 并不孤独。它接近几类已有实践，但边界不同：
-
 | 做法 | 接近点 | 差别 |
 |------|--------|------|
-| Obsidian vault | md + 双链 | OKF 规定了最小 frontmatter 与保留文件名，便于跨工具交换 |
-| LLM wiki / agent memory 仓库 | Agent 可读知识库 | OKF 明确了 bundle 合规与渐进披露约定 |
-| Metadata as code | 元数据进 git | OKF 同时容纳非结构化正文，不只是 schema YAML |
-| 企业数据目录 | 语义与血缘 | OKF 是可搬运的文件格式，不替代服务端查询与治理 |
+| Obsidian vault | md + 双链 | OKF 规定最小 frontmatter 与保留文件名，便于跨工具交换 |
+| LLM wiki / agent memory 仓库 | Agent 可读知识库 | OKF 把 bundle 合规与渐进披露写成规范 |
+| Metadata as code | 元数据进 git | OKF 同时容纳长正文，不只是 schema YAML |
+| 企业数据目录 | 语义与血缘 | OKF 是可搬运文件格式，不替代服务端查询与治理 |
 
-一句话概括：OKF 把“知识写成代码协作对象”这件事，收敛成一份很薄的规范。
+一句话：OKF 把「知识写成可协作的代码对象」收敛成一份很薄的规范。
 
 ## 什么时候值得用，什么时候不必
 
-**值得用：**
+**值得用**
 
-- 主题会持续几周以上，资料会反复回看
-- 你希望 Agent 参与阅读、补全、交叉验证
-- 判断需要证据链，而不是一次性聊天结论
-- 你已经在用 Markdown / git 工作流
+- 主题会持续几周以上，资料要反复回看  
+- 希望 Agent 参与阅读、补全、交叉验证  
+- 判断需要证据链，而不是一次性聊天结论  
+- 已经在用 Markdown / git  
 
-**不必硬上：**
+**不必硬上**
 
-- 一次性问答，答案用完即弃
-- 内容几乎全是私有二进制资产，无法文本化
-- 团队已经有强制统一的目录平台，且没有导出/同步需求
+- 一次性问答，答案用完即弃  
+- 内容几乎全是无法文本化的私有二进制  
+- 团队已有强制统一的目录平台，且没有导出 / 同步需求  
 
-OKF 的成本主要在“拆概念”和“写 description”。这个成本换来的是：后人（包括未来的你和 Agent）不用从一坨笔记里重新考古。
+成本主要在「拆概念」和「写一句话 description」。换来的是：后人（包括未来的你和 Agent）不用从一坨笔记里重新考古。
 
 ## 附：OKF 生成 Skill
 
-下面这份 Skill 可直接复制为 `~/.claude/skills/okf-generator/SKILL.md`（或项目内 `.claude/skills/okf-generator/SKILL.md`）。它面向个人研究与通用知识包生成，兼容 OKF v0.1，不依赖 BigQuery。
+下面这份 Skill 可直接复制为 `~/.claude/skills/okf-generator/SKILL.md`（或项目内 `.claude/skills/okf-generator/SKILL.md`）。面向个人研究与通用知识包生成，兼容 OKF v0.1，**不依赖 BigQuery**。
+
+使用时对 Agent 说「按 OKF 生成知识包」并给出主题 / 输出路径 / 材料来源即可；Skill 会要求先盘点 concept，再写文件、补链接、生成 index，并做合规检查。
 
 ````markdown
 ---
@@ -718,4 +808,4 @@ OKF generation
 
 Knowledge Catalog 仓库里真正有迁移价值的，不只是某个 GCP 产品的样例代码，而是 OKF 对知识形态的判断：用最小约定，让知识同时对人可读、对 Agent 可解析、对 git 可协作。
 
-对个人研究者来说，它提供的是一种把“我查过什么、我信什么、我还缺什么”外化为目录结构的方法。结构一旦成立，Agent 就不再只能在聊天窗口里临时聪明一次，而可以在同一份知识包上持续读写。
+规范层几乎只钉死 `type` 与两个保留文件名；实现层（reference agent）在写出与增强时更严——那是「生产好 bundle」的工程选择，不是合规的全部。个人研究借用同一套形状：把「查过什么、信什么、还缺什么」外化成目录。结构一旦成立，Agent 就可以在同一份知识包上持续读写，而不只是在聊天窗口里临时聪明一次。
