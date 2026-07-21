@@ -64,7 +64,11 @@ export default defineConfig({
   // root: './my-project-directory',
 
   // Prefetch Options
-  prefetch: true,
+  // https://docs.astro.build/en/guides/prefetch/
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'viewport'
+  },
   // Server Options
   server: {
     host: true
